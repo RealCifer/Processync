@@ -22,6 +22,9 @@ class ResultResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class ResultUpdate(BaseModel):
+    edited_data: Dict[str, Any]
+
 class DocumentBase(BaseModel):
     filename: str
 

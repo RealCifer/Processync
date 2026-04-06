@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from ..core.db import get_db
 from ..services.document_service import DocumentService
-from ..schemas.document import DocumentResponse, ResultResponse
+from ..schemas.document import DocumentResponse, ResultResponse, ResultUpdate
 from typing import List, Dict, Any
 import uuid
 
@@ -46,10 +46,10 @@ def retry_job(
 @router.put("/{id}/update", response_model=ResultResponse)
 def update_result(
     id: str, 
-    edited_data: Dict[str, Any] = Body(...),
+    update_data: ResultUpdate,
     service: DocumentService = Depends(get_service)
 ):
-    return service.update_result(id, edited_data)
+    return service.update_result(id, update_data.edited_data)
 
 @router.post("/{id}/finalize", response_model=ResultResponse)
 def finalize_result(
