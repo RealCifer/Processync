@@ -9,8 +9,6 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=['app.tasks.document_tasks']
 )
-
-# Optional configuration
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
