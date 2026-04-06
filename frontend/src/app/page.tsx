@@ -179,12 +179,22 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className={`p-5 rounded-2xl transition-transform hover:scale-[1.02] ${isDark ? 'bg-slate-900/50' : 'bg-white shadow-sm'}`}>
                     <span className={`block text-xs mb-2 uppercase font-bold tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Format</span>
-                    <span className={`font-semibold text-lg ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{response.content_type || 'Unknown'}</span>
+                    <span className={`font-semibold text-lg ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{response.mime_type || 'Unknown'}</span>
                   </div>
                   <div className={`p-5 rounded-2xl transition-transform hover:scale-[1.02] ${isDark ? 'bg-slate-900/50' : 'bg-white shadow-sm'}`}>
                     <span className={`block text-xs mb-2 uppercase font-bold tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Size</span>
                     <span className={`font-semibold text-lg font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                      {(response.size / 1024).toFixed(2)} KB
+                      {response.file_size ? (response.file_size / 1024).toFixed(2) + ' KB' : 'Unknown'}
+                    </span>
+                  </div>
+                  <div className={`p-5 rounded-2xl transition-transform hover:scale-[1.02] ${isDark ? 'bg-slate-900/50' : 'bg-white shadow-sm'}`}>
+                    <span className={`block text-xs mb-2 uppercase font-bold tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Document ID</span>
+                    <span className={`font-mono text-xs break-all ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{response.id}</span>
+                  </div>
+                  <div className={`p-5 rounded-2xl transition-transform hover:scale-[1.02] ${isDark ? 'bg-slate-900/50' : 'bg-white shadow-sm'}`}>
+                    <span className={`block text-xs mb-2 uppercase font-bold tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Job Status</span>
+                    <span className={`font-semibold text-lg capitalize ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                      {response.jobs?.[0]?.status || 'Queued'}
                     </span>
                   </div>
                 </div>
