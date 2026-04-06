@@ -32,14 +32,9 @@ class DocumentService:
         db_doc = self.repo.create(doc_data)
         
         # Trigger async worker
-        try:
-            from ..workers.celery_app import celery_app
-            # Job is automatically created in repo.create()
-            job = db_doc.jobs[0]
-            celery_app.send_task("process_document_task", args=[str(job.id)])
-        except ImportError:
-            # For environments where celery isn't configured
-            pass
+        from ..workers.celery_app import celery_app
+        job = db_doc.jobs[0]
+        celery_app.send_task("process_document_task", args=[str(job.id)])
             
         return db_doc
 

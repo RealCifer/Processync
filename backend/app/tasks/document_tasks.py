@@ -11,8 +11,8 @@ from ..core.config import settings
 
 r = redis.from_url(settings.REDIS_URL)
 
-@shared_task(name="process_document_task")
-def process_document_task(job_id_str: str):
+@shared_task(name="process_document_task", bind=True, max_retries=3)
+def process_document_task(self, job_id_str: str):
     db = SessionLocal()
     try:
         job_id = uuid.UUID(job_id_str)
@@ -53,10 +53,18 @@ def process_document_task(job_id_str: str):
         db.rollback()
         job = db.query(Job).filter(Job.id == uuid.UUID(job_id_str)).first()
         if job:
-            job.status = JobStatus.failed
-            job.error_message = str(e)
-            job.completed_at = datetime.utcnow()
+            job.retry_count += 1
+            if job.retry_count >= job.max_retries:
+                job.status = JobStatus.failed
+                job.error_message = f"Max retries reached. Last error: {str(e)}"
+                job.completed_at = datetime.utcnow()
             db.commit()
-        return f"Error: {str(e)}"
+            
+        try:
+            self.retry(exc=e, countdown=10)
+        except self.MaxRetriesExceededError:
+            return f"Error: max retries reached. Final error: {str(e)}"
+            
+        return f"Job queued for retry due to: {str(e)}"
     finally:
         db.close()
