@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# Next.js
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.pem
+
+# Project Specific
+backend/app/uploads/
+*.log
