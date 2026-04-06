@@ -13,29 +13,49 @@ class DocumentService:
         self.repo = DocumentRepository(db)
 
     async def process_upload(self, file: UploadFile):
+        import logging
+        from fastapi import HTTPException
+        from sqlalchemy.exc import OperationalError
+        logger = logging.getLogger(__name__)
+
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
         file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
-        
-        # Save file to disk
+
+        # Step 1: always save the file — never fail here
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-            
         file_size = os.path.getsize(file_path)
-            
+
         doc_data = {
             "filename": file.filename,
             "original_filename": file.filename,
             "file_path": file_path,
             "file_size": file_size,
-            "mime_type": file.content_type
+            "mime_type": file.content_type,
         }
-        
-        db_doc = self.repo.create(doc_data)
-        
-        # Trigger async worker
-        from ..workers.celery_app import celery_app
-        job = db_doc.jobs[0]
-        celery_app.send_task("process_document_task", args=[str(job.id)])
-            
+
+        # Step 2: try to persist to DB — degrade gracefully if DB is down
+        try:
+            db_doc = self.repo.create(doc_data)
+        except OperationalError as e:
+            logger.error(f"DB unavailable during upload: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="File saved to disk but database is unavailable. Retry later."
+            )
+        except Exception as e:
+            logger.error(f"Unexpected DB error during upload: {e}")
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+        # Step 3: try Celery — don't crash the request if Redis is down
+        try:
+            from ..workers.celery_app import celery_app
+            job = db_doc.jobs[0]
+            celery_app.send_task("process_document_task", args=[str(job.id)])
+            logger.info(f"Celery task queued for job {job.id}")
+        except Exception as e:
+            logger.warning(f"Celery unavailable, task not queued: {e}")
+
         return db_doc
 
     def get_all_documents(self, skip: int = 0, limit: int = 100):
