@@ -15,7 +15,7 @@ app = FastAPI(title=settings.PROJECT_NAME)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,39 +27,19 @@ os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 async def root():
     return {"message": "Welcome to Processync AI API"}
 
-@app.post("/upload", response_model=DocumentResponse)
-async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
-    
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    # Get file size
-    file_size = os.path.getsize(file_path)
-        
-    db_doc = Document(
-        filename=file.filename,
-        original_filename=file.filename,
-        file_path=file_path,
-        file_size=file_size,
-        mime_type=file.content_type
-    )
-    db.add(db_doc)
-    db.flush() # To get db_doc.id before committing
-
-    db_job = Job(
-        document_id=db_doc.id,
-        job_type="extraction"
-    )
-    db.add(db_job)
-
-    db.commit()
-    db.refresh(db_doc)
-    
-    from ..workers.celery_app import celery_app
-    celery_app.send_task("process_document_task", args=[str(db_job.id)])
-    
-    return db_doc
+@app.post("/upload")
+async def upload_document(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        size = len(content)
+        return {
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size": size
+        }
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/status/{doc_id}", response_model=DocumentResponse)
 async def get_task_status(doc_id: uuid.UUID, db: Session = Depends(get_db)):
