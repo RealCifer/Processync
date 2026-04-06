@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"   # Use 5433 on host to avoid conflict with local Postgres
 
   redis:
     image: redis:7
@@ -38,7 +38,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A workers.celery_app worker --loglevel=info
+    command: celery -A app.workers.celery_app worker --loglevel=info
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
@@ -62,3 +62,4 @@ services:
 
 volumes:
   postgres_data:
+

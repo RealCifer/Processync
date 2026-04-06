@@ -9,21 +9,26 @@ logger = logging.getLogger(__name__)
 
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,       # Test connection health before using from pool
-    pool_recycle=300,         # Recycle connections every 5 minutes
-    connect_args={"connect_timeout": 5},
+    pool_pre_ping=True,    # Validate connections before use
+    pool_recycle=300,      # Recycle connections every 5 min
+    pool_timeout=5,        # Give up acquiring a connection after 5s
+    echo=False,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def check_db_connection() -> bool:
-    """Check if database is reachable. Returns False instead of crashing."""
+    """Non-blocking DB connectivity check. Returns False if DB is unavailable."""
     try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+        # Use a raw connection with short timeout to prevent hanging
+        raw_conn = engine.raw_connection()
+        cursor = raw_conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        raw_conn.close()
         return True
-    except OperationalError as e:
-        logger.warning(f"Database not reachable: {e}")
+    except Exception as e:
+        logger.warning(f"Database not reachable: {type(e).__name__}: {e}")
         return False
 
 def get_db():

@@ -12,26 +12,37 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- Startup ---
+    import asyncio
+    # --- Startup (non-blocking) ---
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    
-    db_ok = check_db_connection()
-    if db_ok:
-        logger.info("✅ Database connected successfully")
-    else:
-        logger.warning("⚠️  Database NOT reachable — upload will degrade gracefully")
+    logger.info("🚀 Processync API starting...")
 
+    # Run DB check in a thread so it never blocks the async event loop
+    loop = asyncio.get_event_loop()
     try:
-        import redis
-        r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
-        r.ping()
+        db_ok = await asyncio.wait_for(
+            loop.run_in_executor(None, check_db_connection),
+            timeout=6.0
+        )
+        if db_ok:
+            logger.info("✅ Database connected successfully")
+        else:
+            logger.warning("⚠️  Database NOT reachable — API starts anyway, uploads will fail gracefully")
+    except asyncio.TimeoutError:
+        logger.warning("⚠️  Database check timed out — API starts anyway")
+
+    # Redis check
+    try:
+        import redis as redis_lib
+        r = redis_lib.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        await asyncio.wait_for(loop.run_in_executor(None, r.ping), timeout=3.0)
         logger.info("✅ Redis connected successfully")
     except Exception:
-        logger.warning("⚠️  Redis NOT reachable — Celery tasks will queue when Redis is available")
+        logger.warning("⚠️  Redis NOT reachable — Celery tasks will not process until Redis is running")
 
     yield
     # --- Shutdown ---
-    logger.info("Shutting down Processync API")
+    logger.info("🛑 Shutting down Processync API")
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
