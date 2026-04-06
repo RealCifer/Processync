@@ -13,18 +13,22 @@ export default function Home() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (doc && (doc.status === 'PENDING' || doc.status === 'PROCESSING')) {
-      interval = setInterval(async () => {
-        try {
-          const updatedDoc = await getDocumentStatus(doc.id);
-          setDoc(updatedDoc);
-          if (updatedDoc.status === 'COMPLETED' || updatedDoc.status === 'FAILED') {
-            clearInterval(interval);
+    if (doc && doc.jobs && doc.jobs.length > 0) {
+      const activeJob = doc.jobs[0];
+      if (activeJob.status === 'queued' || activeJob.status === 'processing') {
+        interval = setInterval(async () => {
+          try {
+            const updatedDoc = await getDocumentStatus(doc.id);
+            setDoc(updatedDoc);
+            const newActiveJob = updatedDoc.jobs?.[0];
+            if (newActiveJob && (newActiveJob.status === 'completed' || newActiveJob.status === 'failed')) {
+              clearInterval(interval);
+            }
+          } catch (err) {
+            console.error('Error fetching status:', err);
           }
-        } catch (err) {
-          console.error('Error fetching status:', err);
-        }
-      }, 2000);
+        }, 2000);
+      }
     }
 
     return () => clearInterval(interval);
@@ -43,6 +47,11 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  const activeJob = doc?.jobs?.[0];
+  const activeStatus = activeJob?.status?.toUpperCase() || 'UNKNOWN';
+  const progress = activeJob?.progress_percentage || 0;
+  const resultData = doc?.results?.[0]?.extracted_data;
 
   return (
     <main className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100">
@@ -93,13 +102,13 @@ export default function Home() {
           ) : (
             <div className="space-y-6 animate-in zoom-in-95 duration-500">
               <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-blue-400">{doc.filename}</h3>
+                <h3 className="text-xl font-bold text-blue-400">{doc.original_filename}</h3>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  doc.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
-                  doc.status === 'FAILED' ? 'bg-rose-500/20 text-rose-400' :
+                  activeStatus === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400' :
+                  activeStatus === 'FAILED' ? 'bg-rose-500/20 text-rose-400' :
                   'bg-amber-500/20 text-amber-400 animate-pulse'
                 }`}>
-                  {doc.status}
+                  {activeStatus}
                 </span>
               </div>
 
@@ -107,21 +116,21 @@ export default function Home() {
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-blue-500 transition-all duration-500 ease-out shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                    style={{ width: `${doc.progress}%` }}
+                    style={{ width: `${progress}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-sm text-slate-500">
                   <span>Processing Progress</span>
-                  <span>{doc.progress}%</span>
+                  <span>{progress}%</span>
                 </div>
               </div>
 
-              {doc.status === 'COMPLETED' && doc.result && (
+              {activeStatus === 'COMPLETED' && resultData && (
                 <div className="bg-slate-800/50 rounded-xl p-4 space-y-3 border border-slate-700/50">
                   <h4 className="font-bold text-slate-300">Analysis Results</h4>
-                  <p className="text-slate-400 text-sm leading-relaxed">{doc.result.analysis}</p>
+                  <p className="text-slate-400 text-sm leading-relaxed">{resultData.analysis}</p>
                   <div className="flex flex-wrap gap-2">
-                    {doc.result.entities?.map((e: string, i: number) => (
+                    {resultData.entities?.map((e: string, i: number) => (
                       <span key={i} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs">
                         {e}
                       </span>

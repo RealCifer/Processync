@@ -1,22 +1,22 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Enum
-from datetime import datetime
-import enum
+import uuid
+from sqlalchemy import Column, String, BigInteger, Boolean, DateTime, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from ..core.db import Base
-
-class TaskStatus(str, enum.Enum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
 
 class Document(Base):
     __tablename__ = "documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_path = Column(String(2048), nullable=False)
+    file_size = Column(BigInteger, nullable=False, default=0)
+    mime_type = Column(String(100), nullable=True)
+    is_deleted = Column(Boolean, default=False)
     
-    id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String)
-    file_path = Column(String)
-    status = Column(String, default=TaskStatus.PENDING)
-    progress = Column(Integer, default=0)
-    result = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    jobs = relationship("Job", back_populates="document", cascade="all, delete-orphan")
+    results = relationship("Result", back_populates="document", cascade="all, delete-orphan")

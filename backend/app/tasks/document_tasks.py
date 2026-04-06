@@ -2,50 +2,60 @@ import time
 import random
 from celery import shared_task
 from ..core.db import SessionLocal
-from ..models.document import Document, TaskStatus
+from ..models.job import Job, JobStatus
+from ..models.result import Result
 import redis
+import uuid
+from datetime import datetime
 from ..core.config import settings
 
-# Redis connection for Pub/Sub progress updates
 r = redis.from_url(settings.REDIS_URL)
 
 @shared_task(name="process_document_task")
-def process_document_task(doc_id: int):
+def process_document_task(job_id_str: str):
     db = SessionLocal()
     try:
-        doc = db.query(Document).filter(Document.id == doc_id).first()
-        if not doc:
-            return "Document not found"
+        job_id = uuid.UUID(job_id_str)
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            return "Job not found"
         
-        # Update Status to Processing
-        doc.status = TaskStatus.PROCESSING
+        job.status = JobStatus.processing
+        job.started_at = datetime.utcnow()
         db.commit()
         
-        # Simulate Intensive Document Processing (OCR, Analysis, etc.)
         total_steps = 10
         for i in range(1, total_steps + 1):
-            time.sleep(random.uniform(0.5, 1.5)) # Simulate work
+            time.sleep(random.uniform(0.5, 1.5))
             progress = int((i / total_steps) * 100)
             
-            # Update Database
-            doc.progress = progress
+            job.progress_percentage = progress
             db.commit()
             
-            # Pub/Sub for Real-time Frontend Progress
-            r.publish(f"doc_progress_{doc_id}", progress)
-            print(f"Document {doc_id} Progress: {progress}%")
+            r.publish(f"doc_progress_{job.document_id}", progress)
+            print(f"Job {job_id} Progress: {progress}%")
             
-        # Complete
-        doc.status = TaskStatus.COMPLETED
-        doc.result = {"analysis": "Sample AI processed result", "entities": ["Entity A", "Entity B"]}
+        # Create Result
+        result = Result(
+            document_id=job.document_id,
+            job_id=job.id,
+            extracted_data={"analysis": "Sample AI processed result", "entities": ["Entity A", "Entity B"]}
+        )
+        db.add(result)
+        
+        job.status = JobStatus.completed
+        job.completed_at = datetime.utcnow()
         db.commit()
         
-        return f"Document {doc_id} processed successfully"
+        return f"Job {job_id} processed successfully"
         
     except Exception as e:
-        doc = db.query(Document).filter(Document.id == doc_id).first()
-        if doc:
-            doc.status = TaskStatus.FAILED
+        db.rollback()
+        job = db.query(Job).filter(Job.id == uuid.UUID(job_id_str)).first()
+        if job:
+            job.status = JobStatus.failed
+            job.error_message = str(e)
+            job.completed_at = datetime.utcnow()
             db.commit()
         return f"Error: {str(e)}"
     finally:
