@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core.config import settings
 from .api.routes import router as api_router
+from .api.websockets import router as ws_router
 from .core.db import check_db_connection
 import logging
 import os
@@ -55,6 +56,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.include_router(ws_router)
 
 @app.get("/")
 async def root():

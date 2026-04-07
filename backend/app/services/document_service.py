@@ -7,10 +7,24 @@ from sqlalchemy.orm import Session
 from ..repositories.document_repo import DocumentRepository
 from ..core.config import settings
 from ..schemas.document import DocumentResponse
+from ..core.redis import get_redis_client
+import json
+from datetime import datetime
 
 class DocumentService:
     def __init__(self, db: Session):
         self.repo = DocumentRepository(db)
+        self.redis = get_redis_client()
+
+    def _publish_queued_event(self, job_id: uuid.UUID):
+        payload = {
+            "job_id": str(job_id),
+            "event": "job_queued",
+            "progress": 0,
+            "message": "Job added to queue",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        self.redis.publish(f"job_progress:{job_id}", json.dumps(payload))
 
     async def process_upload(self, file: UploadFile):
         import logging
@@ -52,6 +66,7 @@ class DocumentService:
             from ..workers.celery_app import celery_app
             job = db_doc.jobs[0]
             celery_app.send_task("process_document_task", args=[str(job.id)])
+            self._publish_queued_event(job.id)
             logger.info(f"Celery task queued for job {job.id}")
         except Exception as e:
             logger.warning(f"Celery unavailable, task not queued: {e}")
@@ -82,6 +97,7 @@ class DocumentService:
         try:
             from ..workers.celery_app import celery_app
             celery_app.send_task("process_document_task", args=[str(job.id)])
+            self._publish_queued_event(job.id)
         except ImportError:
             pass
             
