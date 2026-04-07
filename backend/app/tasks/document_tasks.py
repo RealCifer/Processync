@@ -12,21 +12,28 @@ from ..models.document import Document
 from ..core.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
-r = get_redis_client()
 
 def publish_progress(job_id, status, stage, message):
     """Utility to publish progress events to Redis Pub/Sub."""
+    from ..core.redis import get_redis_client
+    r = get_redis_client()
+    
     payload = {
         "job_id": str(job_id),
         "status": status,
         "stage": stage,
         "message": message
     }
-    logger.info(f"Publishing progress [Job {job_id}]: {stage} - {message}")
-    r.publish("progress_channel", json.dumps(payload))
+    debug_msg = f"DEBUG - Redis Publishing [Job {job_id}]: {stage} - {message}"
+    print(debug_msg)  # Force output to terminal for user
+    logger.info(debug_msg)
+    
+    r.publish(f"job_progress:{job_id}", json.dumps(payload))
 
 @shared_task(name="process_document_task", bind=True, max_retries=3)
 def process_document_task(self, job_id_str: str):
+    print(f"DEBUG - TASK START: Received job {job_id_str}")
+    logger.info(f"Processing job {job_id_str}")
     db = SessionLocal()
     job_id = None
     try:

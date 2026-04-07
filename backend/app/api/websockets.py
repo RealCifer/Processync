@@ -17,7 +17,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     await websocket.accept()
     redis = get_async_redis_client()
     pubsub = redis.pubsub()
-    channel = "progress_channel"
+    channel = f"job_progress:{job_id}"
     
     await pubsub.subscribe(channel)
     logger.info(f"WebSocket connected for job {job_id}, subscribed to {channel}")
@@ -36,17 +36,12 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
             try:
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message and message['type'] == 'message':
-                    # Parse data string to JSON to perform job_id filtering
-                    try:
-                        data = json.loads(message['data'])
-                        if str(data.get('job_id')) == str(job_id):
-                            logger.debug(f"Matches Job {job_id}: Forwarding progress...")
-                            await websocket.send_json(data)
-                    except json.JSONDecodeError:
-                        logger.error(f"Invalid JSON from Redis on progress_channel: {message['data']}")
+                    # Directly forward the Redis message data (it is already stringified JSON)
+                    logger.debug(f"Direct forwarding for job {job_id}")
+                    await websocket.send_text(message['data'])
             except asyncio.CancelledError:
-                logger.info(f"WebSocket tracking for job {job_id} was cancelled")
-                raise
+                # Gracefully exit the loop on cancellation (e.g. server shutdown)
+                return
             except Exception as e:
                 logger.error(f"Error in WebSocket loop for job {job_id}: {str(e)}")
             
@@ -56,7 +51,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     except WebSocketDisconnect:
         logger.info(f"WebSocket client disconnected for job {job_id}")
     except asyncio.CancelledError:
-        # Silently handle task cancellation during shutdown
+        # Prevent noisy tracebacks during shutdown
         pass
     except Exception as e:
         logger.error(f"WebSocket error for job {job_id}: {str(e)}")
