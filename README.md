@@ -195,6 +195,16 @@ Example JSON extraction result:
 - **Backend**: FastAPI, SQLAlchemy, Pydantic, Celery.
 - **Infrastructure**: Redis, PostgreSQL, Docker Compose.
 
-## 18. Conclusion
+## 18. Deployed links
+
+Bakcend - https://processync-2.onrender.com/
+
+Swagger UI - https://processync-2.onrender.com/docs
+
+Frontend - https://processync.vercel.app/
+
+## 19. Conclusion
 
 Processync represents a complete, scalable solution for modern document workflows. By combining asynchronous task distribution with real-time feedback loops, it provides a stable foundation for enterprise document intelligence needs.
+
+Author - Aditya Khamait

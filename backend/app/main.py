@@ -10,7 +10,6 @@ async def lifespan(app: FastAPI):
     print("\n[STARTUP] Processync API is initializing...")
     logger.info("Starting application lifespan...")
     
-    # 1. Database Initialization
     try:
         from sqlalchemy import text
         with engine.connect() as conn:
@@ -24,7 +23,6 @@ async def lifespan(app: FastAPI):
         print(f"[STARTUP] WARNING: Database connection failed: {str(e)}")
         logger.warning(f"Database connection failed at startup: {e}")
 
-    # 2. Redis Connectivity Check (Optional)
     try:
         import redis
         from .core.config import settings
