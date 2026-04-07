@@ -18,7 +18,7 @@ Key architectural pillars:
 - **Real-time Progress Hub**: Live stage-by-stage tracking (Initializing -> Parsing -> Extraction -> Storage).
 - **Comprehensive Job Lifecycle**: State management for Queued, Processing, Completed, and Failed jobs.
 - **Advanced Dashboard**: Full-featured management view with multi-criteria search, status filtering, and chronological sorting.
-- **Interactive Review**: Intelligent form-based editor to audit and correct AI-generated metadata.
+- **Interactive Review**: Intelligent form-based editor to audit and correct algorithm-driven metadata.
 - **Governance Finalization**: Official verification workflow that locks document records to ensure data integrity.
 - **Recovery Logic**: One-click retry mechanism for failed processing sequences.
 - **Professional Export**: High-fidelity data extraction in both JSON (Full Schema) and CSV (Flattened Metadata) formats.
@@ -128,7 +128,7 @@ The entire platform is containerized for seamless deployment.
 
 1. **Document Received**: File is saved to secure storage and record created.
 2. **Parsing**: Initial structure analysis and format verification.
-3. **Extraction**: AI-driven metadata harvesting (Title, Summary, Keywords).
+3. **Extraction**: Algorithm-driven metadata harvesting (Title, Summary, Keywords).
 4. **Final Storage**: Structured results are persisted to PostgreSQL and client is notified.
 
 ## 10. Progress Tracking
@@ -186,10 +186,10 @@ Example JSON extraction result:
 
 - Implementation of a dedicated OCR stage for image-based documents.
 - Multi-user authentication and Organization-level isolation.
-- Advanced AI model integration (LLM) for deep semantic analysis.
-- S3-compatible cloud storage adapter.
+- **Advanced model integration**: Deep semantic analysis.
+- **S3-compatible cloud storage adapter**: Improved data persistence.
 
-## 17. Tools Used / AI Usage
+## 17. Tools Used
 
 - **Frontend**: Next.js 14, Tailwind CSS, Lucide Icons.
 - **Backend**: FastAPI, SQLAlchemy, Pydantic, Celery.

@@ -55,7 +55,7 @@ def process_document_task(self, job_id_str: str):
         publish_progress(job_id, "processing", "parsing", "Parsing document structure")
         time.sleep(1)
 
-        publish_progress(job_id, "processing", "extraction", "Extracting intelligence with AI")
+        publish_progress(job_id, "processing", "extraction", "Performing advanced metadata extraction")
         time.sleep(1.5)
 
         final_output = {
@@ -67,7 +67,7 @@ def process_document_task(self, job_id_str: str):
             "content": {
                 "title": f"Analysis of {document.original_filename}",
                 "category": "General Document",
-                "summary": "This document contains structured data extracted via Processync AI.",
+                "summary": "This document contains structured data extracted via Processync Engine.",
                 "keywords": ["analysis", "extracted", "processync"]
             }
         }

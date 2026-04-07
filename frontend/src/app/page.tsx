@@ -36,7 +36,7 @@ export default function LandingPage() {
 
         <div className="pt-24 grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-16 duration-1000 delay-500">
            <Stat label="Latency" value="Optimal" />
-           <Stat label="Model" value="Processync AI" />
+           <Stat label="Model" value="Processync Engine" />
            <Stat label="Uptime" value="Verified" />
         </div>
       </div>
