@@ -6,7 +6,7 @@ from datetime import datetime
 from ..core.db import Base
 
 class JobStatus(str, enum.Enum):
-    pending = "pending"
+    queued = "queued"
     processing = "processing"
     completed = "completed"
     failed = "failed"
@@ -17,7 +17,7 @@ class Job(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     document_id = Column(String, ForeignKey("documents.id"), nullable=False)
     job_type = Column(String, nullable=False)
-    status = Column(SqlEnum(JobStatus), default=JobStatus.pending)
+    status = Column(SqlEnum(JobStatus), default=JobStatus.queued)
     error_message = Column(String, nullable=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)

@@ -16,27 +16,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-black antialiased selection:bg-blue-500/30 selection:text-blue-200`}>
-        <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-8">
-          <div className="max-w-7xl mx-auto flex items-center justify-between bg-slate-900/40 backdrop-blur-3xl border border-slate-800/50 px-8 py-5 rounded-[2.5rem] shadow-2xl">
-            <Link href="/" className="group">
-              <span className="text-2xl font-black tracking-tighter uppercase italic group-hover:text-blue-500 transition-colors">
-                Proces<span className="text-blue-600">sync</span>
+    <html lang="en" className="dark">
+      <body className={`${inter.className} bg-neutral-950 text-neutral-50 antialiased`}>
+        <header className="fixed top-0 left-0 right-0 z-50 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2 group">
+              <span className="text-xl font-bold tracking-tight text-white">
+                Proces<span className="text-blue-500">sync</span>
               </span>
             </Link>
             
-            <div className="flex items-center gap-10">
-              <Link href="/dashboard" className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 hover:text-white transition-colors">Dashboard</Link>
+            <nav className="flex items-center gap-8">
+              <Link href="/dashboard" className="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Dashboard</Link>
               <Link href="/upload">
-                <button className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-[0.3em] px-8 py-3 rounded-full transition-all shadow-xl shadow-blue-900/20 active:scale-95">
+                <button className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-md transition-all active:scale-95 shadow-sm">
                   Analyze
                 </button>
               </Link>
-            </div>
+            </nav>
           </div>
-        </nav>
-        {children}
+        </header>
+        <main className="min-h-screen pt-16">
+          {children}
+        </main>
       </body>
     </html>
   );

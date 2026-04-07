@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { uploadDocument } from '@/services/api';
+import { uploadDocument, Document } from '@/services/api';
+
+const STAGES = ['initializing', 'parsing', 'extraction', 'completed'];
 
 export default function UploadPage() {
   const router = useRouter();
@@ -10,6 +12,7 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [document, setDocument] = useState<Document | null>(null);
   const [progress, setProgress] = useState<{
     status: string;
     stage: string;
@@ -19,20 +22,25 @@ export default function UploadPage() {
   useEffect(() => {
     if (!jobId) return;
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/progress/${jobId}`);
+    const wsUrl = process.env.NEXT_PUBLIC_API_URL 
+      ? process.env.NEXT_PUBLIC_API_URL.replace(/^http/, 'ws') 
+      : 'ws://localhost:8000';
+    const ws = new WebSocket(`${wsUrl}/ws/progress/${jobId}`);
     
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      console.log('WS Progress:', data.stage, data.status);
       setProgress(data);
-      if (data.status === 'completed') {
-        setTimeout(() => {
-            router.push('/dashboard');
-        }, 1500);
-      }
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket Error:', err);
+      // We don't necessarily set Error here to avoid interrupting the UI if it's almost done
+      // but if status is not completed, we might want to tell the user
     };
 
     return () => ws.close();
-  }, [jobId, router]);
+  }, [jobId]);
 
   const handleUpload = async () => {
     if (!file) return;
@@ -40,97 +48,201 @@ export default function UploadPage() {
     setError(null);
     try {
       const doc = await uploadDocument(file);
+      setDocument(doc);
       if (doc.jobs && doc.jobs.length > 0) {
         setJobId(doc.jobs[0].id);
+      } else {
+        // If no jobs returned, it might be already processed or backend error
+        setLoading(false);
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error('Upload Error:', err);
+      setError('Upload failed. Please check your connection and try again.');
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-black text-white pt-32 px-6">
-      <div className="max-w-3xl mx-auto space-y-12">
-        <header className="text-center space-y-4">
-          <h1 className="text-5xl font-black tracking-tighter italic uppercase">Analyze Document</h1>
-          <p className="text-slate-500 font-medium lowercase tracking-widest">Async Intelligence Pipeline</p>
-        </header>
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0] || null;
+    setFile(selectedFile);
+    setError(null);
+    setJobId(null);
+    setDocument(null);
+    setProgress(null);
+    setLoading(false);
+  };
 
-        <div className="bg-slate-900/40 backdrop-blur-3xl border border-slate-800/80 rounded-[3rem] p-12 shadow-2xl relative overflow-hidden">
-          {!jobId ? (
-            <div className="space-y-8">
-              <div className="border-2 border-dashed border-slate-800 rounded-[2rem] p-16 text-center hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group">
+  const getDisplayStage = (rawStage: string) => {
+    if (!rawStage) return 'initializing';
+    if (rawStage.startsWith('parsing')) return 'parsing';
+    if (rawStage.startsWith('extraction')) return 'extraction';
+    return rawStage; // 'initializing', 'completed', 'failed'
+  };
+
+  const currentDisplayStage = getDisplayStage(progress?.stage || '');
+  const stageIndex = STAGES.indexOf(currentDisplayStage);
+  const isCompleted = progress?.status === 'completed' || currentDisplayStage === 'completed';
+
+  return (
+    <div className="max-w-xl mx-auto py-12 px-6">
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-white leading-tight">Analyze Document</h1>
+          <p className="text-neutral-400 text-sm">Upload a PDF or Image to extract structured data.</p>
+        </div>
+
+        <div className="space-y-6 bg-neutral-900 border border-neutral-800 rounded-xl p-8 shadow-sm">
+          {!jobId && !isCompleted ? (
+            /* UPLOAD SECTION */
+            <div className="space-y-6">
+              <div className="group relative border-2 border-dashed border-neutral-800 hover:border-blue-500/50 hover:bg-blue-500/5 rounded-xl p-10 text-center transition-all cursor-pointer">
                 <input 
                   type="file" 
                   id="file-input" 
-                  className="hidden" 
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                  onChange={handleFileChange}
                 />
-                <label htmlFor="file-input" className="cursor-pointer block space-y-4">
-                  <div className="w-20 h-20 bg-slate-800 rounded-2xl mx-auto flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="space-y-4">
+                  <div className="w-12 h-12 bg-neutral-800 rounded-lg mx-auto flex items-center justify-center text-neutral-400 group-hover:text-blue-500 transition-colors">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
                   </div>
                   <div>
-                    <p className="text-xl font-bold uppercase tracking-tight">{file ? file.name : 'Choose File'}</p>
-                    <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase">Select PDF or Images</p>
+                    <p className="text-white font-semibold">{file ? file.name : 'Select document'}</p>
+                    <p className="text-xs text-neutral-500 mt-1">Maximum size: 10MB (PDF, PNG, JPG)</p>
                   </div>
-                </label>
+                </div>
               </div>
 
               <button
                 disabled={!file || loading}
                 onClick={handleUpload}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-xl shadow-blue-900/10"
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 py-3 rounded-lg font-bold text-sm transition-all active:scale-[0.98] shadow-md shadow-blue-900/10"
               >
-                {loading ? 'Initializing' : 'Start Process'}
+                {loading ? (
+                    <div className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Initializing...
+                    </div>
+                ) : 'Analyze Document'}
               </button>
             </div>
-          ) : (
-            <div className="space-y-10 py-4">
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-black uppercase tracking-tight italic">Processing Sequence</h3>
-                <p className="text-blue-400 font-mono text-[10px] tracking-tighter opacity-50">{jobId}</p>
-              </div>
-
+          ) : !isCompleted ? (
+            /* PROGRESS SECTION */
+            <div className="space-y-8 py-2 text-center">
               <div className="space-y-4">
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-600 transition-all duration-1000 ease-in-out"
-                    style={{ 
-                        width: progress?.stage === 'completed' ? '100%' : 
-                               progress?.stage === 'extraction' ? '70%' : 
-                               progress?.stage === 'parsing' ? '30%' : '10%' 
-                    }}
-                  />
+                <div className="flex flex-col gap-1">
+                   <p className="text-sm font-bold text-blue-500 uppercase tracking-widest">{progress?.status || 'Processing'}</p>
+                   <p className="text-xs text-neutral-500 font-mono opacity-50">{jobId}</p>
                 </div>
-                <div className="flex justify-between text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">
-                  <span className={progress?.stage === 'initializing' ? 'text-blue-400' : ''}>Start</span>
-                  <span className={progress?.stage === 'parsing' ? 'text-blue-400' : ''}>Parse</span>
-                  <span className={progress?.stage === 'extraction' ? 'text-blue-400' : ''}>Extract</span>
-                  <span className={progress?.status === 'completed' ? 'text-emerald-500' : ''}>End</span>
+
+                <div className="space-y-6">
+                  <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-600 transition-all duration-700 ease-in-out"
+                      style={{ 
+                          width: Math.max(5, (stageIndex + 1) * 25) + '%' 
+                      }}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-2">
+                     {STAGES.map((stage) => {
+                         const stageIdx = STAGES.indexOf(stage);
+                         const isActive = stageIdx <= stageIndex;
+                         const isCurrent = stageIdx === stageIndex;
+
+                         return (
+                             <div key={stage} className="flex flex-col items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full transition-all ${isActive ? (progress?.status === 'failed' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]') : 'bg-neutral-800'}`} />
+                                <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${isCurrent ? 'text-blue-500' : 'text-neutral-600'}`}>{stage}</span>
+                             </div>
+                         );
+                     })}
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-slate-800/30 rounded-2xl p-6 border border-slate-700/50 flex items-center gap-4">
-                 <div className="w-8 h-8 bg-blue-500/10 rounded-full flex items-center justify-center animate-spin">
-                    <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                 </div>
-                 <div>
-                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">LOG</p>
-                    <p className="font-bold text-slate-400 text-sm uppercase tracking-tight">{progress?.message || 'Queuing...'}</p>
-                 </div>
+              <div className="bg-neutral-800/20 rounded-lg p-5 border border-neutral-800/50">
+                 <p className="text-sm text-neutral-300 font-medium">
+                    {progress?.message || 'Connecting to process cluster...'}
+                 </p>
               </div>
+            </div>
+          ) : (
+            /* RESULT SECTION */
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+               <div className="text-center space-y-2">
+                  <div className="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-full mx-auto flex items-center justify-center border border-emerald-500/20">
+                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                     </svg>
+                  </div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Analysis Complete</h2>
+                  <p className="text-neutral-400 text-sm font-medium">Successfully extracted structured data.</p>
+               </div>
+
+               <div className="bg-neutral-800/30 rounded-xl p-6 border border-neutral-800 space-y-4">
+                  <div className="flex justify-between items-center pb-4 border-b border-neutral-800">
+                     <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest leading-none">Document Snapshot</span>
+                     <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-[10px] font-bold uppercase tracking-wider border border-blue-500/20">
+                        Verified
+                     </span>
+                  </div>
+                  
+                  <div className="space-y-4 pt-2">
+                     <div className="flex justify-between items-center gap-4">
+                        <span className="text-sm text-neutral-400 font-medium">Filename</span>
+                        <span className="text-sm text-white font-semibold truncate max-w-[240px]">{document?.original_filename || 'Unknown Document'}</span>
+                     </div>
+                     <div className="flex justify-between items-center">
+                        <span className="text-sm text-neutral-400 font-medium">File Size</span>
+                        <span className="text-sm text-white font-semibold">
+                            {typeof document?.file_size === 'number' ? `${(document.file_size / 1024).toFixed(1)} KB` : '0.0 KB'}
+                        </span>
+                     </div>
+                     <div className="flex justify-between items-center">
+                        <span className="text-sm text-neutral-400 font-medium">Format</span>
+                        <span className="text-sm text-white font-semibold uppercase">{document?.mime_type?.split('/')[1] || 'PDF'}</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="flex flex-col gap-3 pt-2">
+                  <button 
+                    onClick={() => router.push('/dashboard')}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98]"
+                  >
+                    View in Dashboard
+                  </button>
+                  <button 
+                    onClick={() => {
+                        setJobId(null);
+                        setDocument(null);
+                        setProgress(null);
+                        setFile(null);
+                    }}
+                    className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold py-3 rounded-lg text-sm transition-all active:scale-[0.98] border border-neutral-700/50"
+                  >
+                    Analyze Another
+                  </button>
+               </div>
             </div>
           )}
 
           {error && (
-            <div className="mt-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-500 text-center font-black text-[10px] uppercase tracking-widest">
-              Failure: {error}
+            <div className="text-xs font-semibold text-rose-500 bg-rose-500/5 border border-rose-500/10 rounded-lg p-4 text-center animate-in shake-200">
+               {error}
+               <button 
+                onClick={() => setError(null)}
+                className="block mx-auto mt-2 text-rose-400 hover:underline opacity-80 hover:opacity-100 transition-opacity"
+               >
+                Try again
+               </button>
             </div>
           )}
         </div>

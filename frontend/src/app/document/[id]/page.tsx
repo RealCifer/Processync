@@ -35,7 +35,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             });
         }
       } catch (err) {
-        console.error(err);
+        console.error('Fetch Document Error:', err);
       } finally {
         setLoading(false);
       }
@@ -50,7 +50,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       const data = await getDocument(id);
       setDoc(data);
     } catch (err) {
-      console.error(err);
+      console.error('Save Error:', err);
     } finally {
       setSaving(false);
     }
@@ -63,166 +63,171 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       const data = await getDocument(id);
       setDoc(data);
     } catch (err) {
-      console.error(err);
+      console.error('Finalize Error:', err);
     } finally {
       setFinalizing(false);
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-blue-600 font-black uppercase tracking-[0.5em] text-[10px]">Processing</div>;
-  if (!doc) return <div className="min-h-screen bg-black flex items-center justify-center text-rose-600 uppercase tracking-widest text-xs">Record Not Found</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] gap-4 animate-pulse">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest leading-none">Loading Intelligence</span>
+    </div>
+  );
+
+  if (!doc) return (
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] gap-6">
+        <h3 className="text-xl font-bold text-neutral-200">Intelligence Token Not Found</h3>
+        <button onClick={() => router.push('/dashboard')} className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-md transition-all active:scale-95 text-sm">Return to Dashboard</button>
+    </div>
+  );
 
   const result = doc.results?.[0];
   const isFinalized = result?.is_finalized;
+  const fileSizeKB = doc.file_size ? (doc.file_size / 1024).toFixed(1) : '0.0';
+  const fileType = doc.mime_type ? doc.mime_type.split('/')[1]?.toUpperCase() : 'UNKNOWN';
 
   return (
-    <div className="min-h-screen bg-black text-white pt-32 pb-24 px-6">
-      <div className="max-w-6xl mx-auto space-y-12">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-slate-900 pb-12">
-          <div className="space-y-4">
-            <button onClick={() => router.back()} className="text-slate-600 hover:text-white flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-colors mb-4">
-               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
-               Back
-            </button>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic truncate max-w-2xl">{doc.original_filename}</h1>
+    <div className="max-w-5xl mx-auto py-12 px-6 space-y-12 animate-in fade-in duration-500">
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 pb-10 border-b border-neutral-800">
+        <div className="space-y-4">
+          <button onClick={() => router.back()} className="text-neutral-500 hover:text-white flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors mb-2">
+             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+             Previous
+          </button>
+          <div className="space-y-2">
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">{doc.original_filename}</h1>
             <div className="flex gap-4 items-center">
-              <span className="text-[8px] bg-slate-900 px-3 py-1 rounded-full font-black uppercase text-slate-500 tracking-[0.2em] border border-slate-800">{doc.mime_type}</span>
-              <span className="text-[8px] bg-slate-900 px-3 py-1 rounded-full font-black uppercase text-slate-500 tracking-[0.2em] border border-slate-800">{(doc.file_size/1024).toFixed(1)} KB</span>
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest border border-neutral-800 px-2 py-0.5 rounded bg-neutral-900">{fileType}</span>
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest border border-neutral-800 px-2 py-0.5 rounded bg-neutral-900">{fileSizeKB} KB</span>
             </div>
           </div>
+        </div>
 
-          <div className="flex flex-wrap gap-4">
-            <a 
-                href={getExportUrl(id, 'json')}
-                className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-6 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all"
-            >
-              Export JSON
-            </a>
-            <a 
-                href={getExportUrl(id, 'csv')}
-                className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-6 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all"
-            >
-              Export CSV
-            </a>
-            <button 
-                onClick={handleSave}
-                disabled={saving || isFinalized}
-                className="bg-slate-900 hover:bg-slate-800 disabled:opacity-20 px-6 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all border border-slate-800"
-            >
-              {saving ? 'Saving' : 'Save'}
-            </button>
-            <button 
-                onClick={handleFinalize}
-                disabled={finalizing || isFinalized}
-                className={`px-8 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all shadow-xl ${
-                    isFinalized 
-                    ? 'bg-emerald-600/5 text-emerald-600 border border-emerald-600/10 cursor-default'
-                    : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'
-                }`}
-            >
-              {finalizing ? 'Finalizing' : isFinalized ? 'Verified' : 'Finalize'}
-            </button>
-          </div>
-        </header>
+        <div className="flex flex-wrap gap-3">
+          <a download href={getExportUrl(id, 'json')} className="px-4 py-2 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-xs font-bold rounded-md transition-colors selection:bg-none">Export JSON</a>
+          <a download href={getExportUrl(id, 'csv')} className="px-4 py-2 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-xs font-bold rounded-md transition-colors selection:bg-none">Export CSV</a>
+          <button 
+              onClick={handleSave}
+              disabled={saving || isFinalized}
+              className="px-4 py-2 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 disabled:opacity-20 text-xs font-bold rounded-md transition-colors"
+          >
+            {saving ? 'Processing...' : 'Save Draft'}
+          </button>
+          <button 
+              onClick={handleFinalize}
+              disabled={finalizing || isFinalized}
+              className={`px-6 py-2 rounded-md text-xs font-bold transition-all shadow-md active:scale-95 ${
+                  isFinalized 
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default shadow-none'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white'
+              }`}
+          >
+            {finalizing ? 'Finalizing...' : isFinalized ? 'Verified' : 'Verify Result'}
+          </button>
+        </div>
+      </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <div className="lg:col-span-2 space-y-12">
-            {!result ? (
-              <div className="h-64 bg-slate-900/10 border border-slate-900 rounded-[3rem] flex items-center justify-center">
-                <p className="text-slate-800 font-black uppercase italic tracking-[0.5em] text-[8px]">Pending Sequence</p>
-              </div>
-            ) : (
-              <div className="space-y-12">
-                <section className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-1 h-8 bg-blue-600 rounded-full" />
-                    <h2 className="text-2xl font-black uppercase tracking-tight italic">Interactive Analysis</h2>
-                  </div>
-                  
-                  <div className="bg-slate-900/20 backdrop-blur-3xl border border-slate-900 rounded-[3rem] p-10 space-y-10 shadow-2xl">
-                    <div className="space-y-4">
-                       <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Analysis Title</label>
-                       <input 
-                         type="text" 
-                         value={editData.title}
-                         disabled={isFinalized}
-                         onChange={(e) => setEditData({...editData, title: e.target.value})}
-                         className="w-full bg-slate-900 border border-slate-800/80 rounded-2xl px-6 py-4 text-2xl font-black text-blue-600 focus:ring-1 focus:ring-blue-600 outline-none transition-all disabled:opacity-50"
-                       />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                       <div className="space-y-4">
-                          <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Document Category</label>
-                          <input 
-                             type="text" 
-                             value={editData.category}
-                             disabled={isFinalized}
-                             onChange={(e) => setEditData({...editData, category: e.target.value})}
-                             className="w-full bg-slate-900 border border-slate-800/80 rounded-2xl px-6 py-3 text-lg font-bold uppercase tracking-tight focus:ring-1 focus:ring-blue-600 outline-none transition-all disabled:opacity-50"
-                          />
-                       </div>
-                       <div className="space-y-4">
-                          <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Keywords</label>
-                          <input 
-                             type="text" 
-                             value={editData.keywords.join(', ')}
-                             disabled={isFinalized}
-                             onChange={(e) => setEditData({...editData, keywords: e.target.value.split(',').map(k => k.trim())})}
-                             className="w-full bg-slate-900 border border-slate-800/80 rounded-2xl px-6 py-3 text-xs font-bold focus:ring-1 focus:ring-blue-600 outline-none transition-all disabled:opacity-50"
-                          />
-                       </div>
-                    </div>
-
-                    <div className="space-y-4">
-                       <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Extraction Summary</label>
-                       <textarea 
-                         rows={5}
-                         value={editData.summary}
-                         disabled={isFinalized}
-                         onChange={(e) => setEditData({...editData, summary: e.target.value})}
-                         className="w-full bg-slate-900 border border-slate-800/80 rounded-3xl px-8 py-6 text-slate-400 font-medium leading-relaxed text-sm focus:ring-1 focus:ring-blue-600 outline-none transition-all resize-none disabled:opacity-50"
-                       />
-                    </div>
-                  </div>
-                </section>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-12">
-            <section className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="w-1 h-8 bg-indigo-600 rounded-full" />
-                <h2 className="text-2xl font-black uppercase tracking-tight italic">Governance</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
+        <div className="lg:col-span-2 space-y-12">
+          {!result ? (
+            <div className="h-64 bg-neutral-900 border border-neutral-800 rounded-2xl flex items-center justify-center">
+              <p className="text-neutral-600 text-xs font-bold uppercase tracking-[0.4em]">Pending Intelligence Sequence</p>
+            </div>
+          ) : (
+            <section className="space-y-8 bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-sm">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-white tracking-tight">Interactive Findings</h2>
+                <div className="h-0.5 flex-1 bg-neutral-800" />
               </div>
               
-              <div className="bg-slate-900/20 backdrop-blur-3xl border border-slate-900 rounded-[3rem] p-8 space-y-8 shadow-2xl">
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">State</p>
-                    <div className={`inline-block px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${isFinalized ? 'bg-emerald-600/5 text-emerald-600 border border-emerald-600/10' : 'bg-amber-600/5 text-amber-600 border border-amber-600/10'}`}>
-                        {isFinalized ? 'VERIFIED' : 'PENDING'}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Chronology</p>
-                    <p className="font-mono text-[10px] uppercase">{new Date(doc.created_at).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Reference ID</p>
-                    <p className="font-mono text-[8px] text-slate-600 break-all">{doc.id}</p>
-                  </div>
-                  <div className="pt-6 border-t border-slate-900 font-black italic text-slate-700 text-[8px] text-center uppercase tracking-widest">
-                    {isFinalized 
-                      ? "Records are archived." 
-                      : "Verification required."}
-                  </div>
+              <div className="space-y-8">
+                <div className="space-y-2">
+                   <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Document Title</label>
+                   <input 
+                     type="text" 
+                     value={editData.title}
+                     disabled={isFinalized}
+                     onChange={(e) => setEditData({...editData, title: e.target.value})}
+                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-lg font-bold text-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-50"
+                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Document Category</label>
+                      <input 
+                         type="text" 
+                         value={editData.category}
+                         disabled={isFinalized}
+                         onChange={(e) => setEditData({...editData, category: e.target.value})}
+                         className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-50"
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Key Indices</label>
+                      <input 
+                         type="text" 
+                         value={editData.keywords.join(', ')}
+                         disabled={isFinalized}
+                         onChange={(e) => setEditData({...editData, keywords: e.target.value.split(',').map(k => k.trim())})}
+                         className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all disabled:opacity-50"
+                      />
+                   </div>
+                </div>
+
+                <div className="space-y-2">
+                   <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Summarized Context</label>
+                   <textarea 
+                     rows={6}
+                     value={editData.summary}
+                     disabled={isFinalized}
+                     onChange={(e) => setEditData({...editData, summary: e.target.value})}
+                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-6 py-4 text-neutral-400 font-medium leading-relaxed text-sm focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all resize-none disabled:opacity-50"
+                   />
                 </div>
               </div>
             </section>
-          </div>
+          )}
         </div>
+
+        <aside className="space-y-12 sticky top-28">
+          <section className="space-y-6">
+            <h2 className="text-sm font-bold text-neutral-200 uppercase tracking-widest flex items-center gap-4">
+               Audit Governance
+               <div className="h-px flex-1 bg-neutral-800" />
+            </h2>
+            
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-6 shadow-sm overflow-hidden relative">
+              <div className="space-y-6 relative z-10">
+                <div className="flex flex-col gap-2">
+                  <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Process State</p>
+                  <div className={`self-start px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${isFinalized ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
+                      {isFinalized ? 'VERIFIED' : 'PENDING REVIEW'}
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-1">Chronology</p>
+                    <p className="text-xs font-semibold text-neutral-400">{new Date(doc.created_at).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-1">Internal Reference</p>
+                    <p className="text-[10px] font-mono text-neutral-600 leading-tight bg-neutral-950 p-2 rounded-md border border-neutral-800 break-all">{doc.id}</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-neutral-800 font-bold text-neutral-700 text-[10px] text-center uppercase tracking-widest">
+                  {isFinalized 
+                    ? "Archives Finalized" 
+                    : "Verification Active"}
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

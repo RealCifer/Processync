@@ -14,7 +14,7 @@ export interface Document {
 
 export interface Job {
   id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'processing' | 'completed' | 'failed';
   started_at: string | null;
   completed_at: string | null;
 }

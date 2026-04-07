@@ -4,13 +4,16 @@ from datetime import datetime
 import uuid
 
 class JobStatus(BaseModel):
-    id: str
+    id: uuid.UUID
     status: str
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
+    class Config:
+        from_attributes = True
+
 class ResultBase(BaseModel):
-    id: str
+    id: uuid.UUID
     extracted_data: Any
     edited_data: Optional[Any] = None
     is_finalized: bool
@@ -20,7 +23,7 @@ class ResultBase(BaseModel):
         from_attributes = True
 
 class DocumentResponse(BaseModel):
-    id: str
+    id: uuid.UUID
     filename: str
     original_filename: str
     file_size: int

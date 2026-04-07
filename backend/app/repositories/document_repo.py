@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+import json
 from ..models.document import Document
 from ..models.job import Job
 from ..models.result import Result
@@ -49,7 +50,10 @@ class DocumentRepository:
         return self.db.query(Result).filter(Result.document_id == doc_id).first()
 
     def update_result_data(self, result: Result, edited_data: dict) -> Result:
-        result.edited_data = edited_data
+        print(f"DEBUG: saving edited_data type: {type(edited_data)}")
+        if not isinstance(edited_data, (dict, list)):
+            raise ValueError(f"Invalid edited_data type: {type(edited_data)}")
+        result.edited_data = json.dumps(edited_data)
         self.db.commit()
         self.db.refresh(result)
         return result

@@ -12,6 +12,7 @@ async def redis_listener(websocket: WebSocket, job_id: str):
     pubsub = redis_client.pubsub()
     channel_name = f"job_progress:{job_id}"
     
+    print(f"WS SUBSCRIBING to {channel_name}")
     await asyncio.to_thread(pubsub.subscribe, channel_name)
     
     try:
@@ -24,9 +25,11 @@ async def redis_listener(websocket: WebSocket, job_id: str):
             
             if message and message["type"] == "message":
                 data = json.loads(message["data"])
+                print(f"WS REDIS MESSAGE [{job_id}]: {data.get('stage')} - {data.get('message')}")
                 await websocket.send_json(data)
                 
                 if data.get("status") in ["completed", "failed"]:
+                    print(f"WS CLOSING [{job_id}] due to final status: {data.get('status')}")
                     break
                     
             await asyncio.sleep(0.1)
