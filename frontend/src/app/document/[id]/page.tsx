@@ -2,21 +2,38 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getDocument, finalizeDocument, exportDocument, Document } from '@/services/api';
+import { getDocument, finalizeDocument, updateResult, getExportUrl, Document } from '@/services/api';
 
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  
+  const [editData, setEditData] = useState({
+    title: '',
+    category: '',
+    summary: '',
+    keywords: [] as string[]
+  });
 
   useEffect(() => {
     async function fetchDoc() {
       try {
         const data = await getDocument(id);
         setDoc(data);
+        const result = data.results?.[0];
+        const content = result?.edited_data?.content || result?.extracted_data?.content;
+        if (content) {
+            setEditData({
+                title: content.title || '',
+                category: content.category || '',
+                summary: content.summary || '',
+                keywords: content.keywords || []
+            });
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -26,20 +43,16 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     fetchDoc();
   }, [id]);
 
-  const handleExport = async () => {
-    setExporting(true);
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      const data = await exportDocument(id);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `processync_${id}.json`;
-      a.click();
+      await updateResult(id, { content: editData });
+      const data = await getDocument(id);
+      setDoc(data);
     } catch (err) {
-      alert('Export failed');
+      console.error(err);
     } finally {
-      setExporting(false);
+      setSaving(false);
     }
   };
 
@@ -50,98 +63,126 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
       const data = await getDocument(id);
       setDoc(data);
     } catch (err) {
-      alert('Finalization failed');
+      console.error(err);
     } finally {
       setFinalizing(false);
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-blue-500 font-black animate-pulse uppercase tracking-[0.5em]">Analyzing...</div>;
-  if (!doc) return <div className="min-h-screen bg-black flex items-center justify-center text-rose-500">Document Lost in Void</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-blue-600 font-black uppercase tracking-[0.5em] text-[10px]">Processing</div>;
+  if (!doc) return <div className="min-h-screen bg-black flex items-center justify-center text-rose-600 uppercase tracking-widest text-xs">Record Not Found</div>;
 
   const result = doc.results?.[0];
-  const extraction = result?.extracted_data;
+  const isFinalized = result?.is_finalized;
 
   return (
     <div className="min-h-screen bg-black text-white pt-32 pb-24 px-6">
       <div className="max-w-6xl mx-auto space-y-12">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-slate-800 pb-12">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-slate-900 pb-12">
           <div className="space-y-4">
-            <button onClick={() => router.back()} className="text-slate-500 hover:text-white flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors mb-4">
-               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+            <button onClick={() => router.back()} className="text-slate-600 hover:text-white flex items-center gap-2 text-[8px] font-black uppercase tracking-widest transition-colors mb-4">
+               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
                Back
             </button>
-            <h1 className="text-5xl font-black tracking-tighter uppercase italic truncate max-w-2xl">{doc.original_filename}</h1>
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic truncate max-w-2xl">{doc.original_filename}</h1>
             <div className="flex gap-4 items-center">
-              <span className="text-[10px] bg-slate-800 px-3 py-1 rounded-full font-bold uppercase text-slate-400 tracking-widest">{doc.mime_type}</span>
-              <span className="text-[10px] bg-slate-800 px-3 py-1 rounded-full font-bold uppercase text-slate-400 tracking-widest">{(doc.file_size/1024).toFixed(1)} KB</span>
+              <span className="text-[8px] bg-slate-900 px-3 py-1 rounded-full font-black uppercase text-slate-500 tracking-[0.2em] border border-slate-800">{doc.mime_type}</span>
+              <span className="text-[8px] bg-slate-900 px-3 py-1 rounded-full font-black uppercase text-slate-500 tracking-[0.2em] border border-slate-800">{(doc.file_size/1024).toFixed(1)} KB</span>
             </div>
           </div>
 
-          <div className="flex gap-4">
-            <button 
-                onClick={handleExport}
-                disabled={exporting}
-                className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-8 py-3 rounded-2xl font-bold text-sm uppercase tracking-widest transition-all"
+          <div className="flex flex-wrap gap-4">
+            <a 
+                href={getExportUrl(id, 'json')}
+                className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-6 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all"
             >
-              {exporting ? 'Exporting...' : 'Export JSON'}
+              Export JSON
+            </a>
+            <a 
+                href={getExportUrl(id, 'csv')}
+                className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-6 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all"
+            >
+              Export CSV
+            </a>
+            <button 
+                onClick={handleSave}
+                disabled={saving || isFinalized}
+                className="bg-slate-900 hover:bg-slate-800 disabled:opacity-20 px-6 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all border border-slate-800"
+            >
+              {saving ? 'Saving' : 'Save'}
             </button>
             <button 
                 onClick={handleFinalize}
-                disabled={finalizing || result?.is_finalized}
-                className={`px-8 py-3 rounded-2xl font-bold text-sm uppercase tracking-widest transition-all shadow-xl ${
-                    result?.is_finalized 
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 cursor-default'
+                disabled={finalizing || isFinalized}
+                className={`px-8 py-3 rounded-2xl font-black text-[8px] uppercase tracking-widest transition-all shadow-xl ${
+                    isFinalized 
+                    ? 'bg-emerald-600/5 text-emerald-600 border border-emerald-600/10 cursor-default'
                     : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'
                 }`}
             >
-              {finalizing ? 'Finalizing...' : result?.is_finalized ? 'Finalized' : 'Finalize Result'}
+              {finalizing ? 'Finalizing' : isFinalized ? 'Verified' : 'Finalize'}
             </button>
           </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2 space-y-12">
-            {!extraction ? (
-              <div className="h-96 bg-slate-900/30 border border-slate-800/60 rounded-[3rem] flex items-center justify-center">
-                <p className="text-slate-600 font-black uppercase italic tracking-widest">Extraction in Progress or Failed</p>
+            {!result ? (
+              <div className="h-64 bg-slate-900/10 border border-slate-900 rounded-[3rem] flex items-center justify-center">
+                <p className="text-slate-800 font-black uppercase italic tracking-[0.5em] text-[8px]">Pending Sequence</p>
               </div>
             ) : (
               <div className="space-y-12">
                 <section className="space-y-6">
                   <div className="flex items-center gap-4">
                     <div className="w-1 h-8 bg-blue-600 rounded-full" />
-                    <h2 className="text-2xl font-black uppercase tracking-tight italic">AI Content Extraction</h2>
+                    <h2 className="text-2xl font-black uppercase tracking-tight italic">Interactive Analysis</h2>
                   </div>
                   
-                  <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-[3rem] p-10 space-y-10 shadow-2xl">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Extracted Title</label>
-                       <p className="text-3xl font-bold text-blue-400 leading-tight">{extraction.content.title}</p>
+                  <div className="bg-slate-900/20 backdrop-blur-3xl border border-slate-900 rounded-[3rem] p-10 space-y-10 shadow-2xl">
+                    <div className="space-y-4">
+                       <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Analysis Title</label>
+                       <input 
+                         type="text" 
+                         value={editData.title}
+                         disabled={isFinalized}
+                         onChange={(e) => setEditData({...editData, title: e.target.value})}
+                         className="w-full bg-slate-900 border border-slate-800/80 rounded-2xl px-6 py-4 text-2xl font-black text-blue-600 focus:ring-1 focus:ring-blue-600 outline-none transition-all disabled:opacity-50"
+                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                       <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Document Category</label>
-                          <p className="text-xl font-bold uppercase tracking-tight">{extraction.content.category}</p>
+                       <div className="space-y-4">
+                          <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Document Category</label>
+                          <input 
+                             type="text" 
+                             value={editData.category}
+                             disabled={isFinalized}
+                             onChange={(e) => setEditData({...editData, category: e.target.value})}
+                             className="w-full bg-slate-900 border border-slate-800/80 rounded-2xl px-6 py-3 text-lg font-bold uppercase tracking-tight focus:ring-1 focus:ring-blue-600 outline-none transition-all disabled:opacity-50"
+                          />
                        </div>
-                       <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Keywords</label>
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {extraction.content.keywords.map((kw: string) => (
-                              <span key={kw} className="bg-slate-800/80 px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-slate-700/50 hover:border-blue-500/50 transition-colors cursor-default">
-                                {kw}
-                              </span>
-                            ))}
-                          </div>
+                       <div className="space-y-4">
+                          <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Keywords</label>
+                          <input 
+                             type="text" 
+                             value={editData.keywords.join(', ')}
+                             disabled={isFinalized}
+                             onChange={(e) => setEditData({...editData, keywords: e.target.value.split(',').map(k => k.trim())})}
+                             className="w-full bg-slate-900 border border-slate-800/80 rounded-2xl px-6 py-3 text-xs font-bold focus:ring-1 focus:ring-blue-600 outline-none transition-all disabled:opacity-50"
+                          />
                        </div>
                     </div>
 
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Automated Summary</label>
-                       <p className="text-slate-300 font-medium leading-relaxed text-lg italic">
-                         " {extraction.content.summary} "
-                       </p>
+                    <div className="space-y-4">
+                       <label className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Extraction Summary</label>
+                       <textarea 
+                         rows={5}
+                         value={editData.summary}
+                         disabled={isFinalized}
+                         onChange={(e) => setEditData({...editData, summary: e.target.value})}
+                         className="w-full bg-slate-900 border border-slate-800/80 rounded-3xl px-8 py-6 text-slate-400 font-medium leading-relaxed text-sm focus:ring-1 focus:ring-blue-600 outline-none transition-all resize-none disabled:opacity-50"
+                       />
                     </div>
                   </div>
                 </section>
@@ -153,35 +194,29 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
             <section className="space-y-6">
               <div className="flex items-center gap-4">
                 <div className="w-1 h-8 bg-indigo-600 rounded-full" />
-                <h2 className="text-2xl font-black uppercase tracking-tight italic">Audit Data</h2>
+                <h2 className="text-2xl font-black uppercase tracking-tight italic">Governance</h2>
               </div>
               
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-[3rem] p-8 space-y-8 shadow-2xl overflow-hidden relative">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2v4h4L13 4zM6 20V4h5v5h5v11H6z"/></svg>
-                </div>
-
-                <div className="space-y-6 relative">
+              <div className="bg-slate-900/20 backdrop-blur-3xl border border-slate-900 rounded-[3rem] p-8 space-y-8 shadow-2xl">
+                <div className="space-y-6">
                   <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Created</p>
-                    <p className="font-mono text-sm">{new Date(doc.created_at).toLocaleString()}</p>
+                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">State</p>
+                    <div className={`inline-block px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${isFinalized ? 'bg-emerald-600/5 text-emerald-600 border border-emerald-600/10' : 'bg-amber-600/5 text-amber-600 border border-amber-600/10'}`}>
+                        {isFinalized ? 'VERIFIED' : 'PENDING'}
+                    </div>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">System UUID</p>
-                    <p className="font-mono text-[10px] text-slate-400 break-all">{doc.id}</p>
+                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Chronology</p>
+                    <p className="font-mono text-[10px] uppercase">{new Date(doc.created_at).toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">MIME Detection</p>
-                    <p className="font-mono text-sm text-indigo-400">{extraction?.metadata?.file_type || 'N/A'}</p>
+                    <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Reference ID</p>
+                    <p className="font-mono text-[8px] text-slate-600 break-all">{doc.id}</p>
                   </div>
-                  <div className="pt-6 border-t border-slate-800/60">
-                     <p className="text-xs font-bold text-slate-500 italic mb-4">"Verification recommended before finalization."</p>
-                     <div className="bg-blue-500/5 rounded-2xl p-4 border border-blue-500/10">
-                        <div className="flex gap-3 text-blue-400 items-start">
-                            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <span className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">System confidence score: 98% based on structural consistency.</span>
-                        </div>
-                     </div>
+                  <div className="pt-6 border-t border-slate-900 font-black italic text-slate-700 text-[8px] text-center uppercase tracking-widest">
+                    {isFinalized 
+                      ? "Records are archived." 
+                      : "Verification required."}
                   </div>
                 </div>
               </div>

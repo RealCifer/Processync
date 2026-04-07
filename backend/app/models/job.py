@@ -1,32 +1,26 @@
 import uuid
-import enum
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Enum, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import relationship
+import enum
+from datetime import datetime
 from ..core.db import Base
 
 class JobStatus(str, enum.Enum):
-    queued = "queued"
+    pending = "pending"
     processing = "processing"
     completed = "completed"
     failed = "failed"
 
 class Job(Base):
     __tablename__ = "jobs"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
-    job_type = Column(String(100), nullable=False)
-    status = Column(Enum(JobStatus), default=JobStatus.queued, index=True)
-    progress_percentage = Column(Integer, default=0)
-    retry_count = Column(Integer, default=0)
-    max_retries = Column(Integer, default=3)
-    error_message = Column(Text, nullable=True)
-    
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    completed_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    job_type = Column(String, nullable=False)
+    status = Column(SqlEnum(JobStatus), default=JobStatus.pending)
+    error_message = Column(String, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     document = relationship("Document", back_populates="jobs")
-    result = relationship("Result", back_populates="job", uselist=False)

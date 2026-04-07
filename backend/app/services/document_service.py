@@ -1,14 +1,16 @@
 import os
 import shutil
 import uuid
+import json
+import io
+import csv
 from typing import List, Optional
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 from ..repositories.document_repo import DocumentRepository
 from ..core.config import settings
-from ..schemas.document import DocumentResponse
 from ..core.redis import get_redis_client
-import json
 from datetime import datetime
 
 class DocumentService:
@@ -23,23 +25,15 @@ class DocumentService:
             "stage": "initializing",
             "message": "Job added to queue"
         }
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Publishing initial progress for job {job_id}")
         self.redis.publish(f"job_progress:{job_id}", json.dumps(payload))
 
     async def process_upload(self, file: UploadFile):
-        import logging
-        from fastapi import HTTPException
-        from sqlalchemy.exc import OperationalError
-        logger = logging.getLogger(__name__)
-
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
         file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
 
-        # Step 1: always save the file — never fail here
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        
         file_size = os.path.getsize(file_path)
 
         doc_data = {
@@ -50,28 +44,23 @@ class DocumentService:
             "mime_type": file.content_type,
         }
 
-        # Step 2: try to persist to DB — degrade gracefully if DB is down
         try:
             db_doc = self.repo.create(doc_data)
-        except OperationalError as e:
-            logger.error(f"DB unavailable during upload: {e}")
+        except OperationalError:
             raise HTTPException(
                 status_code=503,
                 detail="File saved to disk but database is unavailable. Retry later."
             )
         except Exception as e:
-            logger.error(f"Unexpected DB error during upload: {e}")
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-        # Step 3: try Celery — don't crash the request if Redis is down
         try:
             from ..workers.celery_app import celery_app
             job = db_doc.jobs[0]
             celery_app.send_task("process_document_task", args=[str(job.id)])
             self._publish_queued_event(job.id)
-            logger.info(f"Celery task queued for job {job.id}")
-        except Exception as e:
-            logger.warning(f"Celery unavailable, task not queued: {e}")
+        except Exception:
+            pass
 
         return db_doc
 
@@ -91,9 +80,7 @@ class DocumentService:
             
         job = self.repo.get_job_by_doc_id(doc_id)
         
-        # Create a new job if the old one is failed, or reuse logic
         if not job or job.status != "failed":
-            # Just create a new job to force retry for simplicity
             job = self.repo.create_job(doc_id, "extraction")
             
         try:
@@ -125,12 +112,36 @@ class DocumentService:
         return finalized
 
     def export_data(self, doc_id: str):
+        doc = self.repo.get_by_id(doc_id)
         result = self.repo.get_result_by_doc_id(doc_id)
-        if not result:
-            raise HTTPException(status_code=404, detail="Result not found for document")
+        if not doc or not result:
+            raise HTTPException(status_code=404, detail="Analysis results not found")
             
-        data = result.edited_data if result.edited_data else result.extracted_data
+        return {
+            "document_id": doc_id,
+            "filename": doc.original_filename,
+            "processed_at": result.created_at.isoformat(),
+            "is_finalized": result.is_finalized,
+            "data": result.edited_data if result.edited_data else result.extracted_data
+        }
+
+    def export_csv(self, doc_id: str):
+        doc = self.repo.get_by_id(doc_id)
+        result = self.repo.get_result_by_doc_id(doc_id)
+        if not doc or not result:
+            raise HTTPException(status_code=404, detail="Analysis results not found")
+
+        content = result.edited_data.get("content", {}) if result.edited_data else result.extracted_data.get("content", {})
         
-        # Here we could generate CSV from the dict if requested, but for now we return JSON
-        # CSV could be generated using dictto_csv techniques
-        return {"document_id": doc_id, "data": data}
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Filename", "Title", "Category", "Summary", "Keywords"])
+        writer.writerow([
+            doc.original_filename,
+            content.get("title", "N/A"),
+            content.get("category", "N/A"),
+            content.get("summary", "N/A"),
+            ", ".join(content.get("keywords", []))
+        ])
+        
+        return output.getvalue()

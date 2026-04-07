@@ -58,9 +58,29 @@ def finalize_result(
 ):
     return service.finalize_result(id)
 
-@router.get("/{id}/export")
-def export_data(
+@router.get("/{id}/export/json")
+def export_json(
     id: str, 
     service: DocumentService = Depends(get_service)
 ):
-    return service.export_data(id)
+    from fastapi.responses import JSONResponse
+    data = service.export_data(id)
+    return JSONResponse(
+        content=data,
+        headers={"Content-Disposition": f"attachment; filename=processync_{id}.json"}
+    )
+
+@router.get("/{id}/export/csv")
+def export_csv(
+    id: str, 
+    service: DocumentService = Depends(get_service)
+):
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    csv_content = service.export_csv(id)
+    return StreamingResponse(
+        io.StringIO(csv_content),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=processync_{id}.csv"}
+    )

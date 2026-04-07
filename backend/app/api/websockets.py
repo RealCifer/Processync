@@ -1,65 +1,63 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from ..core.redis import get_async_redis_client
 import json
 import asyncio
 import logging
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from ..core.redis import get_redis_client
 
+router = APIRouter(prefix="/ws", tags=["websockets"])
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
-
-@router.websocket("/ws/progress/{job_id}")
-async def websocket_endpoint(websocket: WebSocket, job_id: str):
-    """
-    WebSocket endpoint for real-time job progress tracking.
-    Subscribes to Redis Pub/Sub channel for the specific job_id.
-    """
-    await websocket.accept()
-    redis = get_async_redis_client()
-    pubsub = redis.pubsub()
-    channel = f"job_progress:{job_id}"
+async def redis_listener(websocket: WebSocket, job_id: str):
+    redis_client = get_redis_client()
+    pubsub = redis_client.pubsub()
+    channel_name = f"job_progress:{job_id}"
     
-    await pubsub.subscribe(channel)
-    logger.info(f"WebSocket connected for job {job_id}, subscribed to {channel}")
+    await asyncio.to_thread(pubsub.subscribe, channel_name)
     
     try:
-        # Initial message to confirm connection
-        await websocket.send_json({
-            "job_id": job_id,
-            "status": "connected",
-            "stage": "initializing",
-            "message": "Successfully connected to progress stream"
-        })
-
         while True:
-            # Check for messages from Redis
-            try:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if message and message['type'] == 'message':
-                    # Directly forward the Redis message data (it is already stringified JSON)
-                    logger.debug(f"Direct forwarding for job {job_id}")
-                    await websocket.send_text(message['data'])
-            except asyncio.CancelledError:
-                # Gracefully exit the loop on cancellation (e.g. server shutdown)
-                return
-            except Exception as e:
-                logger.error(f"Error in WebSocket loop for job {job_id}: {str(e)}")
+            message = await asyncio.to_thread(
+                pubsub.get_message, 
+                ignore_subscribe_messages=True, 
+                timeout=1.0
+            )
             
-            # Brief sleep to prevent tight loop if no message
+            if message and message["type"] == "message":
+                data = json.loads(message["data"])
+                await websocket.send_json(data)
+                
+                if data.get("status") in ["completed", "failed"]:
+                    break
+                    
             await asyncio.sleep(0.1)
             
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket client disconnected for job {job_id}")
     except asyncio.CancelledError:
-        # Prevent noisy tracebacks during shutdown
+        pass
+    finally:
+        await asyncio.to_thread(pubsub.unsubscribe, channel_name)
+        await asyncio.to_thread(pubsub.close)
+
+@router.websocket("/progress/{job_id}")
+async def websocket_endpoint(websocket: WebSocket, job_id: str):
+    await websocket.accept()
+    
+    try:
+        listener_task = asyncio.create_task(redis_listener(websocket, job_id))
+        
+        while True:
+            await websocket.receive_text()
+            
+    except WebSocketDisconnect:
         pass
     except Exception as e:
         logger.error(f"WebSocket error for job {job_id}: {str(e)}")
     finally:
-        try:
-            await pubsub.unsubscribe(channel)
-            await pubsub.close()
-            await redis.close()
-        except:
-            pass
-        logger.info(f"Cleaned up Redis subscription for job {job_id}")
+        if 'listener_task' in locals():
+            listener_task.cancel()
+            try:
+                await listener_task
+            except asyncio.CancelledError:
+                pass
+        
+        if not websocket.client_state.name == "DISCONNECTED":
+            await websocket.close()

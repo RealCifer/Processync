@@ -36,22 +36,20 @@ export interface ExtractionResult {
   };
   edited_data: any;
   is_finalized: boolean;
+  created_at: string;
 }
 
 export async function uploadDocument(file: File): Promise<Document> {
   const formData = new FormData();
   formData.append('file', file);
-
   const response = await fetch(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
     body: formData,
   });
-
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Upload failed');
   }
-
   return response.json();
 }
 
@@ -75,8 +73,16 @@ export async function finalizeDocument(id: string): Promise<any> {
   return response.json();
 }
 
-export async function exportDocument(id: string): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/documents/${id}/export`);
-    if (!response.ok) throw new Error('Failed to export document');
-    return response.json();
+export async function updateResult(id: string, data: any): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/documents/${id}/update`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ edited_data: data }),
+  });
+  if (!response.ok) throw new Error('Failed to update result');
+  return response.json();
+}
+
+export function getExportUrl(id: string, format: 'json' | 'csv'): string {
+  return `${API_BASE_URL}/documents/${id}/export/${format}`;
 }

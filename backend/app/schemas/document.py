@@ -1,47 +1,39 @@
-from pydantic import BaseModel, UUID4, ConfigDict
+from pydantic import BaseModel
+from typing import List, Optional, Any
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-from ..models.job import JobStatus
+import uuid
 
-class JobResponse(BaseModel):
-    id: UUID4
-    job_type: str
-    status: JobStatus
-    progress_percentage: int
-    error_message: Optional[str] = None
+class JobStatus(BaseModel):
+    id: str
+    status: str
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
-    model_config = ConfigDict(from_attributes=True)
-
-class ResultResponse(BaseModel):
-    id: UUID4
-    extracted_data: Dict[str, Any]
-    edited_data: Optional[Dict[str, Any]] = None
+class ResultBase(BaseModel):
+    id: str
+    extracted_data: Any
+    edited_data: Optional[Any] = None
     is_finalized: bool
+    created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
+
+class DocumentResponse(BaseModel):
+    id: str
+    filename: str
+    original_filename: str
+    file_size: int
+    mime_type: Optional[str]
+    created_at: datetime
+    jobs: List[JobStatus] = []
+    results: List[ResultBase] = []
+
+    class Config:
+        from_attributes = True
 
 class ResultUpdate(BaseModel):
-    edited_data: Dict[str, Any]
+    edited_data: Any
 
-class DocumentBase(BaseModel):
-    filename: str
-
-class DocumentCreate(DocumentBase):
-    file_path: str
-    original_filename: str
-    file_size: int
-    mime_type: Optional[str] = None
-
-class DocumentResponse(DocumentBase):
-    id: UUID4
-    original_filename: str
-    file_size: int
-    mime_type: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
-    jobs: List[JobResponse] = []
-    results: List[ResultResponse] = []
-
-    model_config = ConfigDict(from_attributes=True)
+class ResultResponse(ResultBase):
+    pass

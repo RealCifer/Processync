@@ -14,7 +14,6 @@ class DocumentRepository:
         self.db.add(db_doc)
         self.db.flush()
         
-        # Automatically create processing job when document is saved
         db_job = Job(
             document_id=db_doc.id,
             job_type="extraction"
