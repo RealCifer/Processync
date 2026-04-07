@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5433/processync")
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
-    # Storage settings - Moved outside 'backend' to prevent auto-reload on every upload
-    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "../uploads")
+    # Storage settings - Absolute path outside 'backend' to prevent auto-reload on every upload
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", os.path.abspath(os.path.join(os.getcwd(), "../uploads")))
     
     # Missing fields from .env (to avoid ValidationError)
     POSTGRES_USER: str = "postgres"

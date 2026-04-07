@@ -1,29 +1,82 @@
-import { Document } from '../types';
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export interface Document {
+  id: string;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  mime_type: string | null;
+  created_at: string;
+  updated_at: string;
+  jobs: Job[];
+  results: ExtractionResult[];
+}
+
+export interface Job {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ExtractionResult {
+  id: string;
+  extracted_data: {
+    metadata: {
+      filename: string;
+      file_type: string;
+      size: number;
+    };
+    content: {
+      title: string;
+      category: string;
+      summary: string;
+      keywords: string[];
+    };
+  };
+  edited_data: any;
+  is_finalized: boolean;
+}
 
 export async function uploadDocument(file: File): Promise<Document> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/upload`, {
+  const response = await fetch(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
     body: formData,
   });
 
   if (!response.ok) {
-    throw new Error('Upload failed');
+    const error = await response.json();
+    throw new Error(error.detail || 'Upload failed');
   }
 
   return response.json();
 }
 
-export async function getDocumentStatus(docId: number): Promise<Document> {
-  const response = await fetch(`${API_BASE_URL}/status/${docId}`);
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch status');
-  }
-
+export async function getDocuments(): Promise<Document[]> {
+  const response = await fetch(`${API_BASE_URL}/documents/`);
+  if (!response.ok) throw new Error('Failed to fetch documents');
   return response.json();
+}
+
+export async function getDocument(id: string): Promise<Document> {
+  const response = await fetch(`${API_BASE_URL}/documents/${id}`);
+  if (!response.ok) throw new Error('Failed to fetch document details');
+  return response.json();
+}
+
+export async function finalizeDocument(id: string): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/documents/${id}/finalize`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error('Failed to finalize document');
+  return response.json();
+}
+
+export async function exportDocument(id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/documents/${id}/export`);
+    if (!response.ok) throw new Error('Failed to export document');
+    return response.json();
 }
