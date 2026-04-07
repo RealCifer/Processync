@@ -194,7 +194,6 @@ Example JSON extraction result:
 - **Frontend**: Next.js 14, Tailwind CSS, Lucide Icons.
 - **Backend**: FastAPI, SQLAlchemy, Pydantic, Celery.
 - **Infrastructure**: Redis, PostgreSQL, Docker Compose.
-- **AI**: Antigravity AI used for architectural optimization and logic implementation.
 
 ## 18. Conclusion
 
