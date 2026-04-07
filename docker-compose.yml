@@ -4,7 +4,7 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: processync
     volumes:
@@ -28,7 +28,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/processync
+      - DATABASE_URL=postgresql://postgres:password@db:5432/processync
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
@@ -43,7 +43,7 @@ services:
       - ./backend:/app
       - ./uploads:/app/uploads
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/processync
+      - DATABASE_URL=postgresql://postgres:password@db:5432/processync
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
@@ -62,4 +62,3 @@ services:
 
 volumes:
   postgres_data:
-

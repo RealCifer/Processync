@@ -20,10 +20,12 @@ class DocumentService:
         payload = {
             "job_id": str(job_id),
             "status": "queued",
-            "stage": "job_queued",
-            "message": "Job added to queue",
-            "timestamp": datetime.utcnow().isoformat()
+            "stage": "initializing",
+            "message": "Job added to queue"
         }
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Publishing initial progress for job {job_id}")
         self.redis.publish(f"job_progress:{job_id}", json.dumps(payload))
 
     async def process_upload(self, file: UploadFile):

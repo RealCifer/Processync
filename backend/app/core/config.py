@@ -3,8 +3,8 @@ import os
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Processync AI"
-    # Credentials match the running 'db' Docker container from docker-compose (user=user, port=5433)
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5433/processync")
+    # Credentials match the running 'db' Docker container from docker-compose (user=postgres, port=5433)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5433/processync")
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
     # Storage settings

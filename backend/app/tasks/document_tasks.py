@@ -20,9 +20,9 @@ def publish_progress(job_id, status, stage, message):
         "job_id": str(job_id),
         "status": status,
         "stage": stage,
-        "message": message,
-        "timestamp": datetime.utcnow().isoformat()
+        "message": message
     }
+    logger.info(f"Publishing progress [Job {job_id}]: {stage} - {message}")
     r.publish(f"job_progress:{job_id}", json.dumps(payload))
 
 @shared_task(name="process_document_task", bind=True, max_retries=3)
@@ -43,11 +43,11 @@ def process_document_task(self, job_id_str: str):
             publish_progress(job_id, "failed", "failed", "Source document not found")
             return "Document not found"
 
-        # job_started
+        # initializing
         job.status = JobStatus.processing
         job.started_at = datetime.utcnow()
         db.commit()
-        publish_progress(job_id, "processing", "job_started", "Job execution started")
+        publish_progress(job_id, "processing", "initializing", "Job execution started")
         
         # --- PHASE 1: PARSING ---
         publish_progress(job_id, "processing", "parsing", f"Parsing metadata for {document.original_filename}...")
@@ -59,7 +59,7 @@ def process_document_task(self, job_id_str: str):
             "size": document.file_size
         }
         
-        publish_progress(job_id, "processing", "parsing_completed", "Metadata extraction complete")
+        publish_progress(job_id, "processing", "parsing", "Metadata extraction complete")
         
         # --- PHASE 2: EXTRACTION ---
         publish_progress(job_id, "processing", "extraction", "Running AI content extraction...")
@@ -97,10 +97,10 @@ def process_document_task(self, job_id_str: str):
             "keywords": [clean_name.split()[0].lower(), category.lower(), "processync", "automated-extraction"]
         }
         
-        publish_progress(job_id, "processing", "extraction_completed", "Content extraction and analysis finished")
+        publish_progress(job_id, "processing", "extraction", "Content extraction and analysis finished")
         
         # --- PHASE 3: STORAGE ---
-        publish_progress(job_id, "processing", "storage", "Persisting structured analysis to database...")
+        publish_progress(job_id, "processing", "extraction", "Persisting structured analysis to database...")
         
         final_output = {
             "metadata": metadata,
