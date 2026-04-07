@@ -1,0 +1,15 @@
+.env
+.env.example
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.git/
+.gitignore
+.dockerignore
+node_modules/
+dist/
+build/
+.next/
+uploads/
