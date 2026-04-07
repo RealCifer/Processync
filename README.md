@@ -88,7 +88,7 @@ Processync/
 Create a `.env` file in the backend directory:
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5433/processync
+DATABASE_URL=postgresql://<DB_USER>:<DB_PASSWORD>@localhost:5433/processync
 REDIS_URL=redis://localhost:6379/0
 UPLOAD_DIR=./uploads
 ```
