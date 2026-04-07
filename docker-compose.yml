@@ -25,9 +25,7 @@ services:
       - "6379:6379"
 
   api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: ./backend
     restart: always
     ports:
       - "8000:8000"
@@ -44,9 +42,7 @@ services:
       - ./uploads:/app/uploads
 
   worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: ./backend
     restart: always
     command: celery -A app.workers.celery_app worker --loglevel=info -P solo
     environment:
@@ -62,9 +58,7 @@ services:
       - ./uploads:/app/uploads
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    build: ./frontend
     restart: always
     ports:
       - "3000:3000"
