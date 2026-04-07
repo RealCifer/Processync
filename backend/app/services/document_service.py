@@ -19,8 +19,8 @@ class DocumentService:
     def _publish_queued_event(self, job_id: uuid.UUID):
         payload = {
             "job_id": str(job_id),
-            "event": "job_queued",
-            "progress": 0,
+            "status": "queued",
+            "stage": "job_queued",
             "message": "Job added to queue",
             "timestamp": datetime.utcnow().isoformat()
         }

@@ -13,12 +13,12 @@ from ..core.redis import get_redis_client
 logger = logging.getLogger(__name__)
 r = get_redis_client()
 
-def publish_progress(job_id, event, progress, message):
+def publish_progress(job_id, status, stage, message):
     """Utility to publish progress events to Redis Pub/Sub."""
     payload = {
         "job_id": str(job_id),
-        "event": event,
-        "progress": progress,
+        "status": status,
+        "stage": stage,
         "message": message,
         "timestamp": datetime.utcnow().isoformat()
     }
@@ -39,10 +39,10 @@ def process_document_task(self, job_id_str: str):
         job.status = JobStatus.processing
         job.started_at = datetime.utcnow()
         db.commit()
-        publish_progress(job_id, "job_started", 5, "Job execution started")
+        publish_progress(job_id, "processing", "job_started", "Job execution started")
         
         # --- PHASE 1: PARSING ---
-        publish_progress(job_id, "parsing_started", 10, f"Parsing metadata for {document.original_filename}...")
+        publish_progress(job_id, "processing", "parsing", f"Parsing metadata for {document.original_filename}...")
         time.sleep(1.5)
         
         metadata = {
@@ -51,17 +51,17 @@ def process_document_task(self, job_id_str: str):
             "size_bytes": document.file_size
         }
         
-        publish_progress(job_id, "parsing_completed", 40, "Metadata extraction complete")
+        publish_progress(job_id, "processing", "parsing_completed", "Metadata extraction complete")
         
         # --- PHASE 2: EXTRACTION ---
-        publish_progress(job_id, "extraction_started", 45, "Running AI content extraction...")
+        publish_progress(job_id, "processing", "extraction", "Running AI content extraction...")
         
         # Simulate heavy processing
         stages = ["Analyzing layout", "Extracting text blocks", "Identifying entities", "Summarizing content"]
         for i, stage in enumerate(stages):
             time.sleep(random.uniform(1.0, 2.0))
             progress = 45 + ((i + 1) * 10) # 55, 65, 75, 85
-            publish_progress(job_id, "extraction_in_progress", progress, f"{stage}...")
+            publish_progress(job_id, "processing", "extraction", f"{stage}...")
 
         # Generate realistic simulated data
         clean_name = document.original_filename.rsplit('.', 1)[0].replace('_', ' ').replace('-', ' ').title()
@@ -75,10 +75,10 @@ def process_document_task(self, job_id_str: str):
             "keywords": [clean_name.split()[0].lower(), category.lower(), "processync", "ai-extracted"]
         }
         
-        publish_progress(job_id, "extraction_completed", 90, "Content analysis finished")
+        publish_progress(job_id, "processing", "extraction_completed", "Content analysis finished")
         
         # --- PHASE 3: STORAGE ---
-        publish_progress(job_id, "storage_started", 95, "Saving results to database...")
+        publish_progress(job_id, "processing", "storage", "Saving results to database...")
         
         final_data = {
             "metadata": metadata,
@@ -103,7 +103,7 @@ def process_document_task(self, job_id_str: str):
         job.progress_percentage = 100
         db.commit()
         
-        publish_progress(job_id, "job_completed", 100, "All stages completed successfully")
+        publish_progress(job_id, "completed", "completed", "All stages completed successfully")
         
         return f"Job {job_id} processed successfully with structured output"
         
@@ -112,7 +112,7 @@ def process_document_task(self, job_id_str: str):
         logger.error(f"Error processing job {job_id_str}: {str(e)}")
         
         if job_id:
-            publish_progress(job_id, "job_failed", 0, f"Processing failed: {str(e)}")
+            publish_progress(job_id, "failed", "failed", f"Processing failed: {str(e)}")
             job = db.query(Job).filter(Job.id == job_id).first()
             if job:
                 job.retry_count += 1

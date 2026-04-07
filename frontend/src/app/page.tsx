@@ -8,6 +8,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Real-time progress state
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [progressUpdate, setProgressUpdate] = useState<{
+    status: string;
+    stage: string;
+    message: string;
+  } | null>(null);
+  
   // Theme state
   const [isDark, setIsDark] = useState(true);
 
@@ -20,6 +28,50 @@ export default function Home() {
   }, []);
 
   const toggleTheme = () => setIsDark(!isDark);
+  
+  // WebSocket Job Tracking
+  useEffect(() => {
+    if (!currentJobId) return;
+
+    let ws: WebSocket;
+    const connect = () => {
+      ws = new WebSocket(`ws://localhost:8000/ws/progress/${currentJobId}`);
+
+      ws.onopen = () => {
+        console.log('Connected to job tracking:', currentJobId);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setProgressUpdate(data);
+          
+          if (data.status === 'completed' || data.status === 'failed') {
+            // Give a small delay before showing results for better UX
+            setTimeout(() => {
+                // If we wanted to refresh the doc data here, we could
+            }, 1000);
+          }
+        } catch (e) {
+          console.error('Error parsing WS message:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('Disconnected from job tracking');
+      };
+
+      ws.onerror = (err) => {
+        console.error('WS Error:', err);
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [currentJobId]);
 
   const handleUpload = async () => {
     if (!file) return;
@@ -27,6 +79,8 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResponse(null);
+    setCurrentJobId(null);
+    setProgressUpdate(null);
     
     const formData = new FormData();
     formData.append('file', file);
@@ -44,6 +98,11 @@ export default function Home() {
       }
       
       setResponse(data);
+      
+      // Start tracking the first job
+      if (data.jobs && data.jobs.length > 0) {
+        setCurrentJobId(data.jobs[0].id);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -148,15 +207,73 @@ export default function Home() {
               >
                 {loading ? (
                   <div className="flex justify-center items-center gap-3">
-                    <span>Processing</span>
-                    <div className="flex space-x-1.5 mt-1 pointer-events-none">
-                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms', animationDuration: '800ms' }} />
-                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms', animationDuration: '800ms' }} />
-                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms', animationDuration: '800ms' }} />
+                    <span>Uploading</span>
+                    <div className="flex space-x-1.5 mt-1">
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 ) : 'Analyze Document'}
               </button>
+              
+              {/* Reset helper */}
+              {file && !loading && (
+                <button 
+                  onClick={() => setFile(null)}
+                  className={`w-full text-xs font-bold uppercase tracking-widest ${isDark ? 'text-slate-600 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'} transition-colors`}
+                >
+                  Clear Selection
+                </button>
+              )}
+            </div>
+          ) : !response.results || response.results.length === 0 || (progressUpdate && progressUpdate.status === 'processing') ? (
+            <div className="space-y-8 animate-in zoom-in-95 fade-in duration-500 py-6">
+                <div className="text-center space-y-3">
+                    <h3 className={`text-2xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                        Processing...
+                    </h3>
+                    <p className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {progressUpdate?.message || 'Queuing your document for analysis'}
+                    </p>
+                </div>
+
+                <div className="relative pt-1">
+                    <div className={`overflow-hidden h-3 mb-4 text-xs flex rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}>
+                        <div 
+                            style={{ 
+                                width: progressUpdate?.stage === 'completed' ? '100%' : 
+                                       progressUpdate?.stage === 'extraction' ? '75%' :
+                                       progressUpdate?.stage === 'parsing' ? '30%' : '10%' 
+                            }} 
+                            className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-700 ease-in-out"
+                        ></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-[0.2em]">
+                        <span className={progressUpdate?.stage === 'job_queued' ? 'text-blue-500' : 'text-slate-600'}>Queued</span>
+                        <span className={progressUpdate?.stage === 'parsing' || progressUpdate?.stage === 'parsing_completed' ? 'text-blue-500' : 'text-slate-600'}>Parsing</span>
+                        <span className={progressUpdate?.stage === 'extraction' || progressUpdate?.stage === 'extraction_completed' ? 'text-blue-500' : 'text-slate-600'}>Extraction</span>
+                        <span className={progressUpdate?.status === 'completed' ? 'text-emerald-500' : 'text-slate-600'}>Done</span>
+                    </div>
+                </div>
+
+                <div className={`rounded-2xl p-6 flex items-center gap-4 border ${
+                    isDark ? 'bg-slate-800/20 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+                }`}>
+                    <div className="flex-shrink-0">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center animate-spin ${isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Current Stage</p>
+                        <p className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                            {progressUpdate?.stage?.replace('_', ' ').toUpperCase() || 'INITIALIZING'}
+                        </p>
+                    </div>
+                </div>
             </div>
           ) : (
             <div className="space-y-8 animate-in zoom-in-95 fade-in duration-500">
