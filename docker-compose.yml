@@ -2,57 +2,70 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
+    restart: always
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: processync
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=processync
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"   # Use 5433 on host to avoid conflict with local Postgres
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d processync"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
+    restart: always
     ports:
       - "6379:6379"
 
   api:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./backend:/app
-      - ./uploads:/app/uploads
+    restart: always
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/processync
       - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/app/uploads
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./uploads:/app/uploads
 
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.workers.celery_app worker --loglevel=info
-    volumes:
-      - ./backend:/app
-      - ./uploads:/app/uploads
+    restart: always
+    command: celery -A app.workers.celery_app worker --loglevel=info -P solo
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/processync
       - REDIS_URL=redis://redis:6379/0
+      - UPLOAD_DIR=/app/uploads
     depends_on:
-      - redis
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./uploads:/app/uploads
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: always
     ports:
       - "3000:3000"
     environment:
