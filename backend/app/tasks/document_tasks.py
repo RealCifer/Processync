@@ -8,6 +8,7 @@ from celery import shared_task
 from ..core.db import SessionLocal
 from ..models.job import Job, JobStatus
 from ..models.result import Result
+from ..models.document import Document
 from ..core.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,13 @@ def process_document_task(self, job_id_str: str):
             logger.error(f"Job {job_id_str} not found")
             return "Job not found"
         
+        # Fetch the source document
+        document = db.query(Document).filter(Document.id == job.document_id).first()
+        if not document:
+            logger.error(f"Document for job {job_id} not found")
+            publish_progress(job_id, "failed", "failed", "Source document not found")
+            return "Document not found"
+
         # job_started
         job.status = JobStatus.processing
         job.started_at = datetime.utcnow()
@@ -48,7 +56,7 @@ def process_document_task(self, job_id_str: str):
         metadata = {
             "filename": document.original_filename,
             "file_type": document.mime_type or "application/octet-stream",
-            "size_bytes": document.file_size
+            "size": document.file_size
         }
         
         publish_progress(job_id, "processing", "parsing_completed", "Metadata extraction complete")
@@ -56,56 +64,70 @@ def process_document_task(self, job_id_str: str):
         # --- PHASE 2: EXTRACTION ---
         publish_progress(job_id, "processing", "extraction", "Running AI content extraction...")
         
-        # Simulate heavy processing
-        stages = ["Analyzing layout", "Extracting text blocks", "Identifying entities", "Summarizing content"]
-        for i, stage in enumerate(stages):
+        # Simulate realistic multi-step analysis
+        analysis_steps = [
+            "Analyzing document layout and structure",
+            "Extracting contextual text blocks",
+            "Identifying key entities and metadata",
+            "Generating automated summary"
+        ]
+        
+        for i, step in enumerate(analysis_steps):
             time.sleep(random.uniform(1.0, 2.0))
-            progress = 45 + ((i + 1) * 10) # 55, 65, 75, 85
-            publish_progress(job_id, "processing", "extraction", f"{stage}...")
+            publish_progress(job_id, "processing", "extraction", f"{step}...")
 
-        # Generate realistic simulated data
+        # Generate realistic simulated content
         clean_name = document.original_filename.rsplit('.', 1)[0].replace('_', ' ').replace('-', ' ').title()
-        categories = ["Financial", "Legal", "Invoice", "Technical Documentation", "Medical Report", "General Correspondence"]
-        category = random.choice(categories)
+        
+        # Infer category from filename if possible
+        fn_lower = document.original_filename.lower()
+        if "invoice" in fn_lower or "bill" in fn_lower:
+            category = "Invoice"
+        elif "report" in fn_lower:
+            category = "Report"
+        elif "legal" in fn_lower or "contract" in fn_lower:
+            category = "Legal"
+        else:
+            category = random.choice(["Financial", "Technical Documentation", "Medical Record", "General Correspondence"])
         
         content = {
-            "title": f"Analyzed: {clean_name}",
+            "title": f"Processync analysis: {clean_name}",
             "category": category,
-            "summary": f"This document appears to be a {category.lower()} record. It mentions several key entities and has been processed for structural integrity. The file size is {document.file_size} bytes.",
-            "keywords": [clean_name.split()[0].lower(), category.lower(), "processync", "ai-extracted"]
+            "summary": f"Automated analysis of {document.original_filename}. This {category.lower()} document has been processed for structural data extraction and indexed for search readiness.",
+            "keywords": [clean_name.split()[0].lower(), category.lower(), "processync", "automated-extraction"]
         }
         
-        publish_progress(job_id, "processing", "extraction_completed", "Content analysis finished")
+        publish_progress(job_id, "processing", "extraction_completed", "Content extraction and analysis finished")
         
         # --- PHASE 3: STORAGE ---
-        publish_progress(job_id, "processing", "storage", "Saving results to database...")
+        publish_progress(job_id, "processing", "storage", "Persisting structured analysis to database...")
         
-        final_data = {
+        final_output = {
             "metadata": metadata,
             "content": content
         }
 
-        # Create or update Result
+        # Create or update Result record
         result = db.query(Result).filter(Result.job_id == job.id).first()
         if not result:
             result = Result(
                 document_id=job.document_id,
                 job_id=job.id,
-                extracted_data=final_data
+                extracted_data=final_output
             )
             db.add(result)
         else:
-            result.extracted_data = final_data
+            result.extracted_data = final_output
         
-        # Finalize job
+        # Mark job as completed
         job.status = JobStatus.completed
         job.completed_at = datetime.utcnow()
         job.progress_percentage = 100
         db.commit()
         
-        publish_progress(job_id, "completed", "completed", "All stages completed successfully")
+        publish_progress(job_id, "completed", "completed", "Document processing completed successfully")
         
-        return f"Job {job_id} processed successfully with structured output"
+        return f"Job {job_id} processed successfully with structured JSON output"
         
     except Exception as e:
         db.rollback()
