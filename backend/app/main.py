@@ -7,8 +7,36 @@ import logging
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    print("\n[STARTUP] Processync API is initializing...")
+    logger.info("Starting application lifespan...")
+    
+    # 1. Database Initialization
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("[STARTUP] Database connection verified.")
+        
+        # Initialize tables
+        Base.metadata.create_all(bind=engine)
+        print("[STARTUP] Database tables verified/created.")
+    except Exception as e:
+        print(f"[STARTUP] WARNING: Database connection failed: {str(e)}")
+        logger.warning(f"Database connection failed at startup: {e}")
+
+    # 2. Redis Connectivity Check (Optional)
+    try:
+        import redis
+        from .core.config import settings
+        r = redis.from_url(settings.REDIS_URL, socket_timeout=2)
+        r.ping()
+        print("[STARTUP] Redis connection verified.")
+    except Exception as e:
+        print(f"[STARTUP] WARNING: Redis connection failed: {str(e)}")
+        logger.warning(f"Redis connection failed at startup: {e}")
+
     yield
+    print("[SHUTDOWN] Processync API is shutting down...")
 
 app = FastAPI(title="Processync API", lifespan=lifespan)
 
