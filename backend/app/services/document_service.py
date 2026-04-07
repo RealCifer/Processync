@@ -26,7 +26,7 @@ class DocumentService:
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"Publishing initial progress for job {job_id}")
-        self.redis.publish(f"job_progress:{job_id}", json.dumps(payload))
+        self.redis.publish("progress_channel", json.dumps(payload))
 
     async def process_upload(self, file: UploadFile):
         import logging

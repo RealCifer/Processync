@@ -23,7 +23,7 @@ def publish_progress(job_id, status, stage, message):
         "message": message
     }
     logger.info(f"Publishing progress [Job {job_id}]: {stage} - {message}")
-    r.publish(f"job_progress:{job_id}", json.dumps(payload))
+    r.publish("progress_channel", json.dumps(payload))
 
 @shared_task(name="process_document_task", bind=True, max_retries=3)
 def process_document_task(self, job_id_str: str):

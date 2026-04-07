@@ -17,7 +17,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     await websocket.accept()
     redis = get_async_redis_client()
     pubsub = redis.pubsub()
-    channel = f"job_progress:{job_id}"
+    channel = "progress_channel"
     
     await pubsub.subscribe(channel)
     logger.info(f"WebSocket connected for job {job_id}, subscribed to {channel}")
@@ -36,10 +36,14 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
             try:
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message and message['type'] == 'message':
-                    # Message data should already be a JSON string from the worker
-                    data_str = message['data']
-                    logger.debug(f"Redis message received for job {job_id}: {data_str}")
-                    await websocket.send_text(data_str)
+                    # Parse data string to JSON to perform job_id filtering
+                    try:
+                        data = json.loads(message['data'])
+                        if str(data.get('job_id')) == str(job_id):
+                            logger.debug(f"Matches Job {job_id}: Forwarding progress...")
+                            await websocket.send_json(data)
+                    except json.JSONDecodeError:
+                        logger.error(f"Invalid JSON from Redis on progress_channel: {message['data']}")
             except asyncio.CancelledError:
                 logger.info(f"WebSocket tracking for job {job_id} was cancelled")
                 raise
